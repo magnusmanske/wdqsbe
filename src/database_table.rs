@@ -6,6 +6,7 @@ pub struct DatabaseTable {
     pub name: String,
     tp1: Vec<TypePart>,
     tp2: Vec<TypePart>,
+    names: (String,String,String),
 }
 
 impl DatabaseTable {
@@ -18,6 +19,7 @@ impl DatabaseTable {
             name,
             tp1: s.get_type_parts(),
             tp2: o.get_type_parts(),
+            names: (s.name().to_string(),p.name().to_string(),o.name().to_string())
         }
     }
 
