@@ -1,0 +1,8 @@
+{
+    "tool_db":{
+        "url":"mysql://USER:PASSWORD@SERVER:PORT/SCHEMA",
+        "min_connections":0,
+        "max_connections":4,
+        "keep_sec":5
+    }
+}
