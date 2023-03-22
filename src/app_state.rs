@@ -2,70 +2,8 @@ use std::{env, fs::File, time::Duration, collections::HashMap, sync::Arc};
 use mysql_async::{prelude::*,Conn,Opts,OptsBuilder,PoolConstraints,PoolOpts};
 use serde_json::{Value, json};
 use tokio::sync::RwLock;
-use crate::{error::*, element::Element, database_table::DatabaseTable};
+use crate::{error::*, element::Element, database_table::DatabaseTable, db_operation_cache::DbOperationCache};
 
-const INSERT_BATCH_SIZE: usize = 1000;
-
-#[derive(Debug, Clone)]
-struct DbOperationCache {
-    command: String,
-    values: Vec<String>,
-    number_of_values: usize,
-    number_of_rows: usize,
-}
-
-impl DbOperationCache {
-    fn new() -> Self {
-        Self {
-            command: String::new(),
-            values: vec![],
-            number_of_values: 0,
-            number_of_rows: 0,
-        }
-    }
-
-    fn add(&mut self, k: &Element, v: &Element, table: &DatabaseTable, values: Vec<String>) {
-        if values.is_empty() { // Nothing to do
-            println!("Nothing to do");
-            return;
-        }
-        let number_of_values = values.len();
-        if self.number_of_values == 0 {
-            self.number_of_values = number_of_values;
-        }
-        if self.number_of_values != number_of_values {
-            println!("Expected {}, got {number_of_values} values",self.number_of_values);
-            return;
-        }
-        let mut values = values.to_owned();
-        self.values.append(&mut values);
-        self.number_of_rows += 1;
-        if !self.command.is_empty() {
-            return;
-        }
-        let mut fields: Vec<String> = k.fields("k");
-        fields.append(&mut v.fields("v"));
-        self.command = format!("INSERT IGNORE INTO `{}` (`{}`) VALUES ",&table.name,fields.join("`,`"));
-    }
-
-    async fn try_flush(&mut self, app: &AppState) -> Result<(),WDSQErr> {
-        if self.values.len()<INSERT_BATCH_SIZE {
-            return Ok(())
-        }
-        self.force_flush(&app).await
-    }
-
-    async fn force_flush(&mut self, app: &AppState) -> Result<(),WDSQErr> {
-        let question_marks = vec!["?"; self.number_of_values].join(",");
-        let question_marks = format!("({question_marks})");
-        let question_marks = vec![question_marks.as_str(); self.number_of_rows].join(",");
-        let sql = format!("{} ({question_marks})",self.command);
-        app.db_conn().await?.exec_drop(sql, &self.values).await?;
-        self.values.clear();
-        self.number_of_rows = 0;
-        Ok(())
-    }
-}
 
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -114,11 +52,12 @@ impl AppState {
     }
 
     pub async fn init_from_db(&self) -> Result<(),WDSQErr> {
-        let sql = r#"CREATE TABLE IF NOT EXISTS `table_list` {
-            `id` INT(11) NOT NULL,
+        let sql = r#"CREATE TABLE IF NOT EXISTS `table_list` (
+            `id` INT(11) NOT NULL AUTO_INCREMENT,
             `name` VARCHAR(255) NOT NULL,
             `json` MEDIUMTEXT NOT NULL,
-        } ENGINE=InnoDB"# ;
+            PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB"# ;
         let mut conn = self.db_conn().await?;
         conn.exec_drop(sql, ()).await?;
 
@@ -166,7 +105,7 @@ impl AppState {
         let entry = cache
             .entry(table.name.to_owned())
             .or_insert(DbOperationCache::new());
-        entry.add(&s, &o, &table, values);
+        entry.add(&s, &o, &table, values)?;
         entry.try_flush(&self).await?;
         Ok(())
     }

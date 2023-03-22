@@ -10,6 +10,7 @@ pub mod type_part;
 pub mod element;
 pub mod parser;
 pub mod database_table;
+pub mod db_operation_cache;
 pub mod app_state;
 pub mod error;
 

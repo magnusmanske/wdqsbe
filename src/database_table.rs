@@ -25,8 +25,8 @@ impl DatabaseTable {
 
     pub fn create_statement(&self) -> String {
         let mut parts = vec![];
-        parts.push(format!("CREATE TABLE IF NOT EXISTS `{}` {{ ",&self.name));
-        parts.push(format!("`id` INT(11) NOT NULL,"));
+        parts.push(format!("CREATE TABLE IF NOT EXISTS `{}` (",&self.name));
+        parts.push(format!("`id` INT(11) NOT NULL AUTO_INCREMENT,"));
         let mut index_k = vec![];
         let mut index_v = vec![];
         for (num,tp) in self.tp1.iter().enumerate() {
@@ -48,7 +48,7 @@ impl DatabaseTable {
             parts.push(format!("INDEX `index_v` ({}),",index_v.join(",")));
         }
         parts.push(format!("PRIMARY KEY (`id`)"));
-        parts.push(format!("}} ENGINE=InnoDB"));
+        parts.push(format!(") ENGINE=InnoDB"));
         parts.join("\n")
     }
 }
