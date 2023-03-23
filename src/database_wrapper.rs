@@ -44,7 +44,12 @@ impl DatabaseWrapper {
                 })
             })
             .collect();
-        let results = join_all(tasks).await;
+        self.first_err(join_all(tasks).await)?;
+        insert_cache.clear();
+        Ok(())
+    }
+
+    pub fn first_err(&self, results: Vec<Result<Result<(), WDSQErr>, tokio::task::JoinError>>) -> Result<(),WDSQErr> {
         let result = results
             .iter()
             .filter(|result|result.is_err())
@@ -52,6 +57,7 @@ impl DatabaseWrapper {
         if let Some(Err(e)) = result {
             return Err(e.to_string().into());
         }
-        insert_cache.clear();
         Ok(())
-    }}
+    }
+
+}

@@ -89,15 +89,7 @@ impl Parser {
             .collect();
 
         let tasks = tasks.into_iter();
-        join_all(tasks).await
-            .iter()
-            .filter(|result|result.is_err())
-            .for_each(|result|{
-                if let Err(e) = result {
-                    println!("{e}")
-                }
-            });
-
+        wrapper.first_err(join_all(tasks).await)?;
         Ok(())
     }
 

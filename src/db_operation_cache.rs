@@ -58,7 +58,6 @@ impl DbOperationCache {
         let question_marks = vec![question_marks.as_str(); self.values.len()].join(",");
         let sql = format!("{} {question_marks}",self.command);
         let values: Vec<String> = self.values.clone().into_iter().flatten().collect();
-        // println!("{values:?}");
         app.db_conn().await?.exec_drop(sql, &values).await?;
         self.values.clear();
         Ok(())
