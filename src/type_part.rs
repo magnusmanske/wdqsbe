@@ -11,7 +11,7 @@ pub enum TypePart {
 impl TypePart {
     pub fn create_sql(&self) -> Option<&str> {
         match self {
-            TypePart::Text => Some("VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL"),
+            TypePart::Text => Some("VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL"),
             TypePart::ShortText => Some("VARCHAR(64) CHARACTER SET ascii COLLATE ascii_general_ci NOT NULL"),
             TypePart::Int => Some("INT(11) UNSIGNED NOT NULL"),
             TypePart::Blank => None,

@@ -80,6 +80,9 @@ impl AppState {
 
     async fn table(&self, s: Element, p: Element, o: Element) -> Result<DatabaseTable,WDSQErr> {
         let table = DatabaseTable::new(s,p,o);
+        if self.tables.read().await.contains_key(&table.name) {
+            return Ok(table);
+        }
         let mut tables = self.tables.write().await;
         let entry = tables.entry(table.name.to_owned()) ;
         if let std::collections::hash_map::Entry::Vacant(_) = entry {

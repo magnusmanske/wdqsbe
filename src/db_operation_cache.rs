@@ -1,14 +1,13 @@
 use mysql_async::prelude::*;
 use crate::{error::*, element::Element, database_table::DatabaseTable, app_state::AppState};
 
-const INSERT_BATCH_SIZE: usize = 10;
+const INSERT_BATCH_SIZE: usize = 100;
 
 #[derive(Debug, Clone)]
 pub struct DbOperationCache {
     command: String,
-    values: Vec<String>,
+    values: Vec<Vec<String>>,
     number_of_values: usize,
-    number_of_rows: usize,
 }
 
 impl DbOperationCache {
@@ -17,7 +16,6 @@ impl DbOperationCache {
             command: String::new(),
             values: vec![],
             number_of_values: 0,
-            number_of_rows: 0,
         }
     }
 
@@ -25,23 +23,22 @@ impl DbOperationCache {
         if values.is_empty() { // Nothing to do
             return Err("Nothing to do".into());
         }
-        let number_of_values = values.len();
         if self.number_of_values == 0 {
-            self.number_of_values = number_of_values;
+            self.number_of_values = values.len();
         }
-        if self.number_of_values != number_of_values {
-            return Err(format!("Expected {}, got {number_of_values} values",self.number_of_values).into());
+        if self.number_of_values != values.len() {
+            return Err(format!("Expected {}, got {} values",self.number_of_values,values.len()).into());
         }
-        let mut values = values.to_owned();
-        self.values.append(&mut values);
-        self.number_of_rows += 1;
+        self.values.push(values.to_owned());
+
+        // Create command if necessary
         if !self.command.is_empty() {
             return Ok(());
         }
         let mut fields: Vec<String> = k.fields("k");
         fields.append(&mut v.fields("v"));
-        if fields.len()!=number_of_values {
-            return Err(format!("Expected {number_of_values} fields, got {}",fields.len()).into());
+        if fields.len()!=values.len() {
+            return Err(format!("Expected {} fields, got {}",values.len(),fields.len()).into());
         }
         self.command = format!("INSERT IGNORE INTO `{}` (`{}`) VALUES ",&table.name,fields.join("`,`"));
         Ok(())
@@ -57,12 +54,12 @@ impl DbOperationCache {
     pub async fn force_flush(&mut self, app: &AppState) -> Result<(),WDSQErr> {
         let question_marks = vec!["?"; self.number_of_values].join(",");
         let question_marks = format!("({question_marks})");
-        let question_marks = vec![question_marks.as_str(); self.number_of_rows].join(",");
-        let sql = format!("{} ({question_marks})",self.command);
-        app.db_conn().await?.exec_drop(sql, &self.values).await?;
+        let question_marks = vec![question_marks.as_str(); self.values.len()].join(",");
+        let sql = format!("{} {question_marks}",self.command);
+        let values: Vec<String> = self.values.clone().into_iter().flatten().collect();
+        // println!("{sql}\n{:?}\n",&values);
+        app.db_conn().await?.exec_drop(sql, &values).await?;
         self.values.clear();
-        self.number_of_rows = 0;
-        println!("Flushed {}",&self.command);
         Ok(())
     }
 }

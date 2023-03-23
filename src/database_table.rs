@@ -47,6 +47,11 @@ impl DatabaseTable {
         if !index_v.is_empty() {
             parts.push(format!("INDEX `index_v` ({}),",index_v.join(",")));
         }
+        let mut unique_index = index_k;
+        unique_index.append(&mut index_v);
+        if !index_v.is_empty() {
+            parts.push(format!("UNIQUE INDEX `index_u` ({}),",unique_index.join(",")));
+        }
         parts.push(format!("PRIMARY KEY (`id`)"));
         parts.push(format!(") ENGINE=InnoDB"));
         parts.join("\n")
