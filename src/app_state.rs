@@ -2,14 +2,13 @@ use std::{env, fs::File, time::Duration, collections::HashMap, sync::Arc};
 use mysql_async::{prelude::*,Conn,Opts,OptsBuilder,PoolConstraints,PoolOpts};
 use serde_json::{Value, json};
 use tokio::sync::RwLock;
-use crate::{error::*, element::Element, database_table::DatabaseTable, db_operation_cache::DbOperationCache};
+use crate::{error::*, element::Element, database_table::DatabaseTable};
 
 
 #[derive(Debug, Clone)]
 pub struct AppState {
     db_pool: mysql_async::Pool,
     tables: Arc<RwLock<HashMap<String,DatabaseTable>>>,
-    insert_cache: Arc<RwLock<HashMap<String,DbOperationCache>>>,
 }
 
 impl AppState {
@@ -27,7 +26,6 @@ impl AppState {
         let ret = Self {
             db_pool: Self::create_pool(&config["tool_db"]),
             tables: Arc::new(RwLock::new(HashMap::new())),
-            insert_cache: Arc::new(RwLock::new(HashMap::new())),
         };
         ret
     }
@@ -78,7 +76,7 @@ impl AppState {
     Ok(())
     }
 
-    async fn table(&self, s: Element, p: Element, o: Element) -> Result<DatabaseTable,WDSQErr> {
+    pub async fn table(&self, s: Element, p: Element, o: Element) -> Result<DatabaseTable,WDSQErr> {
         let table = DatabaseTable::new(s,p,o);
         if self.tables.read().await.contains_key(&table.name) {
             return Ok(table);
@@ -100,24 +98,37 @@ impl AppState {
         Ok(table)
     }
 
-    pub async fn add(&self, s: Element, p: Element, o: Element) -> Result<(),WDSQErr> {
-        let table = self.table(s.clone(),p,o.clone()).await?;
-        let mut values = s.values();
-        values.append(&mut o.values());
-        let mut cache = self.insert_cache.write().await;
-        let entry = cache
-            .entry(table.name.to_owned())
-            .or_insert(DbOperationCache::new());
-        entry.add(&s, &o, &table, values)?;
-        entry.try_flush(&self).await?;
-        Ok(())
-    }
+    // pub async fn add(&self, s: Element, p: Element, o: Element) -> Result<(),WDSQErr> {
+    //     let table = self.table(s.clone(),p,o.clone()).await?;
+    //     let mut values = s.values();
+    //     values.append(&mut o.values());
+    //     let mut cache = self.insert_cache.write().await;
+    //     let entry = cache
+    //         .entry(table.name.to_owned())
+    //         .or_insert(DbOperationCache::new());
+    //     entry.add(&s, &o, &table, values)?;
+    //     entry.try_flush(&self).await?;
+    //     Ok(())
+    // }
 
-    pub async fn flush_insert_caches(&self) {
-        let mut insert_cache = self.insert_cache.write().await;
-        for (_table_name,cache) in insert_cache.iter_mut() {
-            let _ = cache.force_flush(&self).await;
-        }
-        insert_cache.clear();
-    }
+    // pub async fn flush_insert_caches(&self) -> Result<(),WDSQErr> {
+    //     let mut insert_cache = self.insert_cache.write().await;
+    //     let tasks: Vec<_> = insert_cache
+    //         .iter_mut()
+    //         .map(|(_table_name,cache)|cache.force_flush(&self))
+    //         .collect();
+    //     let result = join_all(tasks).await
+    //         .iter()
+    //         .filter(|result|result.is_err())
+    //         .cloned()
+    //         .nth(0);
+    //     if let Some(result)= result {
+    //             result?;
+    //     }
+    //     // for (_table_name,cache) in insert_cache.iter_mut() {
+    //     //     cache.force_flush(&self).await?;
+    //     // }
+    //     insert_cache.clear();
+    //     Ok(())
+    // }
 }

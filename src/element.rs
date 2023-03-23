@@ -1,5 +1,10 @@
+use regex::Regex;
+
 use crate::type_part::TypePart;
 
+lazy_static! {
+    static ref RE_WIKI_URL: Regex = Regex::new(r#"^https?://(.+?)/wiki/(.+)$"#).expect("RE_WIKI_URL does not parse");
+}
 
 #[derive(Clone, Debug)]
 pub enum Element {
@@ -56,6 +61,104 @@ pub enum Element {
 }
 
 impl Element {
+    pub fn from_str(element: String) -> Option<Self> {
+        if let Some(caps) = RE_WIKI_URL.captures(&element) {
+            let server = caps.get(1).map_or("", |m| m.as_str()).to_string();
+            let page = caps.get(2).map_or("", |m| m.as_str()).to_string();
+            return Some(Element::WikiPage((server,page)))
+        }
+        let mut parts: Vec<_> = element.split("/").collect();
+        let key = parts.pop().unwrap().to_string();
+        let root = parts.join("/");
+        match root.as_str() {
+            "http://www.wikidata.org/entity" => Some(Element::Entity(key)),
+            "http://www.wikidata.org/entity/statement" => Some(Element::EntityStatement(key)),
+            "http://www.wikidata.org/prop" => Some(Element::Property(key)),
+            "http://www.wikidata.org/prop/direct" => Some(Element::PropertyDirect(key)),
+            "http://www.wikidata.org/prop/direct-normalized" => Some(Element::PropertyDirectNormalized(key)),
+            "http://www.wikidata.org/prop/statement" => Some(Element::PropertyStatement(key)),
+            "http://www.wikidata.org/prop/statement/value" => Some(Element::PropertyStatementValue(key)),
+            "http://www.wikidata.org/prop/statement/value-normalized" => Some(Element::PropertyStatementValueNormalized(key)),
+            "http://www.wikidata.org/prop/reference" => Some(Element::PropertyReference(key)),
+            "http://www.wikidata.org/prop/reference/value" => Some(Element::PropertyReferenceValue(key)),
+            "http://www.wikidata.org/prop/qualifier" => Some(Element::PropertyQualifier(key)),
+            "http://www.wikidata.org/prop/qualifier/value" => Some(Element::PropertyQualifierValue(key)),
+            "http://www.wikidata.org/reference" => Some(Element::Reference(key)),
+            "http://www.wikidata.org/value" => Some(Element::Value(key)),
+            "http://wikiba.se" => {
+                match key.as_str() {
+                    "ontology#geoLongitude" => Some(Element::Longitude),
+                    "ontology#geoLatitude" => Some(Element::Latitude),
+                    "ontology#badge" => Some(Element::OntologyBadge),
+                    "ontology#rank" => Some(Element::OntologyRank),
+                    "ontology#NormalRank" => Some(Element::OntologyNormalRank),
+                    "ontology#BestRank" => Some(Element::OntologyBestRank),
+                    "ontology#identifiers" => Some(Element::OntologyIdentifiers),
+                    "ontology#statementProperty" => Some(Element::OntologyStatementProperty),
+                    "ontology#lemma" => Some(Element::OntologyLemma),
+                    "ontology#statements" => Some(Element::OntologyStatements),
+                    "ontology#sitelinks" => Some(Element::OntologySitelinks),
+                    "ontology#propertyType" => Some(Element::OntologyPropertyType),
+                    "ontology#ExternalId" => Some(Element::OntologyExternalId),
+                    "ontology#claim" => Some(Element::OntologyClaim),
+                    "ontology#directClaim" => Some(Element::OntologyDirectClaim),
+                    _ => Some(Element::Other(element)),
+                }
+            }
+            "http://purl.org/dc/terms" => {
+                match key.as_str() {
+                    "language" => Some(Element::PurlLanguage),
+                    _ => Some(Element::Other(element)),
+                }
+            }
+            "http://www.w3.org/2000/01" => {
+                match key.as_str() {
+                    "rdf-schema#label" => Some(Element::RdfSchemaLabel),
+                    _ => Some(Element::Other(element)),
+                }
+            }
+            "http://www.w3.org/ns" => {
+                match key.as_str() {
+                    "prov#wasDerivedFrom" => Some(Element::WasDerivedFrom),
+                    _ => Some(Element::Other(element)),
+                }
+            }
+            "http://www.w3.org/1999/02" => {
+                match key.as_str() {
+                    "22-rdf-syntax-ns#type" => Some(Element::W3RdfSyntaxNsType),
+                    _ => Some(Element::Other(element)),
+                }
+            }
+            "http://www.w3.org/ns/lemon" => {
+                match key.as_str() {
+                    "ontolex#lexicalForm" => Some(Element::W3OntolexLexicalForm),
+                    "ontolex#representation" => Some(Element::W3OntolexRepresentation),
+                    _ => Some(Element::Other(element)),
+                }
+            }
+            "http://www.w3.org/2004/02/skos" => {
+                match key.as_str() {
+                    "core#altLabel" => Some(Element::W3SkosCoreAltLabel),
+                    _ => Some(Element::Other(element)),
+                }
+        }
+            "http://schema.org" => {
+                match key.as_str() {
+                    "inLanguage" => Some(Element::SchemaOrgInLanguage),
+                    "isPartOf" => Some(Element::SchemaOrgIsPartOf),
+                    "about" => Some(Element::SchemaOrgAbout),
+                    "name" => Some(Element::SchemaOrgName),
+                    "version" => Some(Element::SchemaOrgVersion),
+                    "dateModified" => Some(Element::SchemaOrgDateModified),
+                    "Article" => Some(Element::SchemaOrgArticle),
+                    "description" => Some(Element::SchemaOrgDescription),
+                    _ => Some(Element::Other(element)),
+                }
+            }
+            _ => Some(Element::Other(element)),
+        }
+    }
+
     pub fn name(&self) -> &str {
         match self {
             Element::Text(_) => "Text",
@@ -121,7 +224,7 @@ impl Element {
             Element::PropertyDirectNormalized(s) => format!("PropertyDirectNormalized_{s}"),
             Element::PropertyStatement(s) => format!("PropertyStatement_{s}"),
             Element::PropertyStatementValue(s) => format!("PropertyStatementValue_{s}"),
-            Element::PropertyStatementValueNormalized(s) => format!("PropertyStatementValueNormalized_{s}"),
+            Element::PropertyStatementValueNormalized(s) => format!("PSVN_{s}"), // Otherwise the table name can get too long
             Element::PropertyReference(s) => format!("PropertyReference_{s}"),
             Element::PropertyReferenceValue(s) => format!("PropertyReferenceValue_{s}"),
             Element::PropertyQualifier(s) => format!("PropertyQualifier_{s}"),

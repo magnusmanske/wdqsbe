@@ -19,7 +19,7 @@ impl DbOperationCache {
         }
     }
 
-    pub fn add(&mut self, k: &Element, v: &Element, table: &DatabaseTable, values: Vec<String>) -> Result<(),WDSQErr> {
+    pub async fn add(&mut self, k: &Element, v: &Element, table: &DatabaseTable, values: Vec<String>, app: &AppState) -> Result<(),WDSQErr> {
         if values.is_empty() { // Nothing to do
             return Err("Nothing to do".into());
         }
@@ -41,6 +41,7 @@ impl DbOperationCache {
             return Err(format!("Expected {} fields, got {}",values.len(),fields.len()).into());
         }
         self.command = format!("INSERT IGNORE INTO `{}` (`{}`) VALUES ",&table.name,fields.join("`,`"));
+        self.try_flush(&app).await?;
         Ok(())
     }
 
@@ -52,12 +53,14 @@ impl DbOperationCache {
     }
 
     pub async fn force_flush(&mut self, app: &AppState) -> Result<(),WDSQErr> {
+        if self.values.is_empty() {
+            return Ok(());
+        }
         let question_marks = vec!["?"; self.number_of_values].join(",");
         let question_marks = format!("({question_marks})");
         let question_marks = vec![question_marks.as_str(); self.values.len()].join(",");
         let sql = format!("{} {question_marks}",self.command);
         let values: Vec<String> = self.values.clone().into_iter().flatten().collect();
-        // println!("{sql}\n{:?}\n",&values);
         app.db_conn().await?.exec_drop(sql, &values).await?;
         self.values.clear();
         Ok(())

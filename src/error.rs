@@ -8,6 +8,7 @@ pub enum WDSQErr {
     Serde(Arc<serde_json::Error>),
     ParseInt(ParseIntError),
     FromUtf8(FromUtf8Error),
+    ParserError,
 }
 
 impl std::error::Error for WDSQErr {}
@@ -15,12 +16,13 @@ impl std::error::Error for WDSQErr {}
 impl std::fmt::Display for WDSQErr {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
-            Self::String(s) => f.write_str(s),
-            Self::MySQL(e) => f.write_str(&e.to_string()),
-            Self::IO(e) => f.write_str(&e.to_string()),
-            Self::Serde(e) => f.write_str(&e.to_string()),
-            Self::ParseInt(e) => f.write_str(&e.to_string()),
-            Self::FromUtf8(e) => f.write_str(&e.to_string()),
+            WDSQErr::String(s) => f.write_str(s),
+            WDSQErr::MySQL(e) => f.write_str(&e.to_string()),
+            WDSQErr::IO(e) => f.write_str(&e.to_string()),
+            WDSQErr::Serde(e) => f.write_str(&e.to_string()),
+            WDSQErr::ParseInt(e) => f.write_str(&e.to_string()),
+            WDSQErr::FromUtf8(e) => f.write_str(&e.to_string()),
+            WDSQErr::ParserError => f.write_str("Parser error"),
         }
     }
 }

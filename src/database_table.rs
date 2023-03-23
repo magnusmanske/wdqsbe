@@ -15,6 +15,9 @@ impl DatabaseTable {
         let subject_label = s.get_table_name();
         let object_label = o.get_table_name();
         let name = format!("data__{prop_label}__{subject_label}__{object_label}");
+        if name.len()>64 { // Paranoia
+            panic!("DatabaseTable::new: Table name `{name}` has more than 64 characters");
+        }
         Self {
             name,
             tp1: s.get_type_parts(),
@@ -41,17 +44,25 @@ impl DatabaseTable {
                 index_v.push(format!("`v{num}`"));
             }
         }
-        if !index_k.is_empty() {
-            parts.push(format!("INDEX `index_k` ({}),",index_k.join(",")));
+        // Create separate key and value indices
+        if true {
+            if !index_k.is_empty() {
+                parts.push(format!("INDEX `index_k` ({}),",index_k.join(",")));
+            }
+            if !index_v.is_empty() {
+                parts.push(format!("INDEX `index_v` ({}),",index_v.join(",")));
+            }
         }
-        if !index_v.is_empty() {
-            parts.push(format!("INDEX `index_v` ({}),",index_v.join(",")));
+
+        // Create single unique index
+        if true {
+            let mut unique_index = index_k;
+            unique_index.append(&mut index_v);
+            if !unique_index.is_empty() {
+                parts.push(format!("UNIQUE INDEX `index_u` ({}),",unique_index.join(",")));
+            }
         }
-        let mut unique_index = index_k;
-        unique_index.append(&mut index_v);
-        if !index_v.is_empty() {
-            parts.push(format!("UNIQUE INDEX `index_u` ({}),",unique_index.join(",")));
-        }
+
         parts.push(format!("PRIMARY KEY (`id`)"));
         parts.push(format!(") ENGINE=InnoDB"));
         parts.join("\n")
