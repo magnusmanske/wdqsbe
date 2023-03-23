@@ -8,7 +8,7 @@ use crate::{error::*, element::Element, database_table::DatabaseTable};
 #[derive(Debug, Clone)]
 pub struct AppState {
     db_pool: mysql_async::Pool,
-    tables: Arc<RwLock<HashMap<String,DatabaseTable>>>,
+    pub tables: Arc<RwLock<HashMap<String,DatabaseTable>>>,
 }
 
 impl AppState {

@@ -7,6 +7,7 @@ pub struct DatabaseTable {
     tp1: Vec<TypePart>,
     tp2: Vec<TypePart>,
     names: (String,String,String),
+    property: String,
 }
 
 impl DatabaseTable {
@@ -22,8 +23,17 @@ impl DatabaseTable {
             name,
             tp1: s.get_type_parts(),
             tp2: o.get_type_parts(),
-            names: (s.name().to_string(),p.name().to_string(),o.name().to_string())
+            names: (s.name().to_string(),p.name().to_string(),o.name().to_string()),
+            property: prop_label,
         }
+    }
+
+    pub fn property(&self) -> &str {
+        &self.property
+    }
+
+    pub fn names(&self) -> &(std::string::String, std::string::String, std::string::String) {
+        &self.names
     }
 
     pub fn create_statement(&self) -> String {
