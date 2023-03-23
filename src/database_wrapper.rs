@@ -36,19 +36,22 @@ impl DatabaseWrapper {
         let mut insert_cache = self.insert_cache.write().await;
         let tasks: Vec<_> = insert_cache
             .iter_mut()
-            .map(|(_table_name,cache)|cache.force_flush(&self.app))
+            .map(|(_table_name,cache)|{
+                let mut cache = cache.clone();
+                let app = self.app.clone();
+                tokio::spawn(async move {
+                    cache.force_flush(&app).await
+                })
+            })
             .collect();
-        let result = join_all(tasks).await
+        let results = join_all(tasks).await;
+        let result = results
             .iter()
             .filter(|result|result.is_err())
-            .cloned()
             .nth(0);
-        if let Some(result)= result {
-                result?;
+        if let Some(Err(e)) = result {
+            return Err(e.to_string().into());
         }
-        // for (_table_name,cache) in insert_cache.iter_mut() {
-        //     cache.force_flush(&self).await?;
-        // }
         insert_cache.clear();
         Ok(())
     }}

@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use mysql_async::prelude::*;
 use crate::{error::*, element::Element, database_table::DatabaseTable, app_state::AppState};
 
@@ -19,7 +21,7 @@ impl DbOperationCache {
         }
     }
 
-    pub async fn add(&mut self, k: &Element, v: &Element, table: &DatabaseTable, values: Vec<String>, app: &AppState) -> Result<(),WDSQErr> {
+    pub async fn add(&mut self, k: &Element, v: &Element, table: &DatabaseTable, values: Vec<String>, app: &Arc<AppState>) -> Result<(),WDSQErr> {
         if values.is_empty() { // Nothing to do
             return Err("Nothing to do".into());
         }
@@ -41,18 +43,13 @@ impl DbOperationCache {
             return Err(format!("Expected {} fields, got {}",values.len(),fields.len()).into());
         }
         self.command = format!("INSERT IGNORE INTO `{}` (`{}`) VALUES ",&table.name,fields.join("`,`"));
-        self.try_flush(&app).await?;
+        if self.values.len()>=INSERT_BATCH_SIZE {
+            self.force_flush(app).await?;
+        }
         Ok(())
     }
 
-    pub async fn try_flush(&mut self, app: &AppState) -> Result<(),WDSQErr> {
-        if self.values.len()<INSERT_BATCH_SIZE {
-            return Ok(())
-        }
-        self.force_flush(&app).await
-    }
-
-    pub async fn force_flush(&mut self, app: &AppState) -> Result<(),WDSQErr> {
+    pub async fn force_flush(&mut self, app: &Arc<AppState>) -> Result<(),WDSQErr> {
         if self.values.is_empty() {
             return Ok(());
         }
@@ -61,6 +58,7 @@ impl DbOperationCache {
         let question_marks = vec![question_marks.as_str(); self.values.len()].join(",");
         let sql = format!("{} {question_marks}",self.command);
         let values: Vec<String> = self.values.clone().into_iter().flatten().collect();
+        // println!("{values:?}");
         app.db_conn().await?.exec_drop(sql, &values).await?;
         self.values.clear();
         Ok(())
