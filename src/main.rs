@@ -32,8 +32,8 @@ async fn main() -> Result<(), WDSQErr> {
         parser.import_from_file(filename, &app).await?;
     } else {
         let qp1 = QueryPart::Unknown;
-        let qp2 = QueryPart::Element(Element::PropertyDirect("P31".into()));
-        let qp3 = QueryPart::Element(Element::Entity("Q5".into()));
+        let qp2 = QueryPart::Element(Element::from_str(app.replace_prefix("wdt:P31")).unwrap());
+        let qp3 = QueryPart::Element(Element::from_str(app.replace_prefix("wd:Q5")).unwrap());
         let qt = QueryTriples::new(&app,qp1,qp2,qp3);
         let result = qt.filter_tables().await;
         let result = qt.group_tables(result).await;

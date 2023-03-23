@@ -9,6 +9,7 @@ use crate::{error::*, element::Element, database_table::DatabaseTable};
 pub struct AppState {
     db_pool: mysql_async::Pool,
     pub tables: Arc<RwLock<HashMap<String,DatabaseTable>>>,
+    prefixes: HashMap<String,String>,
 }
 
 impl AppState {
@@ -23,9 +24,16 @@ impl AppState {
 
     /// Creatre an AppState object from a config JSON object
     pub fn from_config(config: &Value) -> Self {
+        let prefixes = config["prefixes"]
+            .as_object()
+            .expect("Prefixes JSON is not an object")
+            .iter()
+            .map(|(k,v)|(k.to_owned(),v.as_str().unwrap().to_string()))
+            .collect();
         let ret = Self {
             db_pool: Self::create_pool(&config["tool_db"]),
             tables: Arc::new(RwLock::new(HashMap::new())),
+            prefixes,
         };
         ret
     }
@@ -47,6 +55,18 @@ impl AppState {
     /// Returns a connection to the tool database
     pub async fn db_conn(&self) -> Result<Conn, mysql_async::Error> {
         self.db_pool.get_conn().await
+    }
+
+    pub fn replace_prefix(&self, s: &str) -> String {
+        match s.split_once(":") {
+            Some((before,after)) => {
+                match self.prefixes.get(&before.trim().to_lowercase()) {
+                    Some(path) => format!("{path}{}",after.trim()),
+                    None => s.to_string(),
+                }
+            },
+            None => s.to_string(),
+        }
     }
 
     pub async fn init_from_db(&self) -> Result<(),WDSQErr> {
@@ -98,4 +118,19 @@ impl AppState {
         Ok(table)
     }
 
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_replace_prefix() {
+        let app = Arc::new(AppState::from_config_file("config.json").unwrap());
+        assert_eq!(app.replace_prefix("wd:Q12345"),"http://www.wikidata.org/entity/Q12345");
+        assert_eq!(app.replace_prefix("  wd  :  Q12345 "),"http://www.wikidata.org/entity/Q12345");
+        assert_eq!(app.replace_prefix("wdt:P123"),"http://www.wikidata.org/prop/direct/P123");
+        assert_eq!(app.replace_prefix("foo:bar"),"foo:bar");
+        assert_eq!(app.replace_prefix("foo bar"),"foo bar");
+    }
 }
