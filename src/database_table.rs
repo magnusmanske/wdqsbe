@@ -8,12 +8,13 @@ pub struct DatabaseTable {
     tp2: Vec<TypePart>,
     names: (String,String,String),
     property: String,
+    values: Vec<String>,
 }
 
 impl DatabaseTable {
     pub fn new(s: Element, p: Element, o: Element) -> Self {
-        let prop_label = p.get_table_name();
         let subject_label = s.get_table_name();
+        let prop_label = p.get_table_name();
         let object_label = o.get_table_name();
         let name = format!("data__{prop_label}__{subject_label}__{object_label}");
         if name.len()>64 { // Paranoia
@@ -25,11 +26,16 @@ impl DatabaseTable {
             tp2: o.get_type_parts(),
             names: (s.name().to_string(),p.name().to_string(),o.name().to_string()),
             property: prop_label,
+            values: p.values(),
         }
     }
 
     pub fn property(&self) -> &str {
         &self.property
+    }
+
+    pub fn values(&self) -> &Vec<String> {
+        &self.values
     }
 
     pub fn names(&self) -> &(std::string::String, std::string::String, std::string::String) {

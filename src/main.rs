@@ -5,9 +5,7 @@ extern crate tokio;
 
 use std::sync::Arc;
 use app_state::AppState;
-use element::Element;
 use error::WDSQErr;
-use query_part::QueryPart;
 use query_triples::QueryTriples;
 
 pub mod type_part;
@@ -31,14 +29,10 @@ async fn main() -> Result<(), WDSQErr> {
         let parser = parser::Parser{};
         parser.import_from_file(filename, &app).await?;
     } else {
-        let qp1 = QueryPart::Unknown;
-        let qp2 = QueryPart::Element(Element::from_str(app.replace_prefix("wdt:P31")).unwrap());
-        let qp3 = QueryPart::Element(Element::from_str(app.replace_prefix("wd:Q5")).unwrap());
-        let qt = QueryTriples::new(&app,qp1,qp2,qp3);
-        let result = qt.filter_tables().await;
-        let result = qt.group_tables(result).await;
-        let result = qt.process_grouped_tables(result).await?;
-        println!("{result:?}");
+        let mut qt1 = QueryTriples::from_str(&app,"?person","wdt:P31","wd:Q5").await?;
+        let qt2 = QueryTriples::from_str(&app,"?person","wdt:P21","wd:Q6581072").await?;
+        qt1.and(&qt2)?;
+        println!("{:?}",&qt1.result);
     }
     Ok(())
 }

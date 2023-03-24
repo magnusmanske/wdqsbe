@@ -212,6 +212,30 @@ impl Element {
         }
     }
 
+    pub fn sql_var_from_name(name: &str, prefix: &str) -> Vec<String> {
+        match name {
+            "Text" => vec![format!("{prefix}0")],
+            "TextInLanguage" => vec![format!("{prefix}0"),format!("{prefix}1")],
+            "WikiPage" => vec![format!("{prefix}0"),format!("{prefix}1")],
+            "Entity" => vec![format!("{prefix}0")],
+            "EntityStatement" => vec![format!("{prefix}0")],
+            "Property" => vec![format!("{prefix}0")],
+            "PropertyDirect" => vec![format!("{prefix}0")],
+            "PropertyDirectNormalized" => vec![format!("{prefix}0")],
+            "PropertyStatement" => vec![format!("{prefix}0")],
+            "PropertyStatementValue" => vec![format!("{prefix}0")],
+            "PropertyStatementValueNormalized" => vec![format!("{prefix}0")],
+            "PropertyReference" => vec![format!("{prefix}0")],
+            "PropertyReferenceValue" => vec![format!("{prefix}0")],
+            "PropertyQualifier" => vec![format!("{prefix}0")],
+            "PropertyQualifierValue" => vec![format!("{prefix}0")],
+            "Reference" => vec![format!("{prefix}0")],
+            "Value" => vec![format!("{prefix}0")],
+            "Other" => vec![format!("{prefix}0")],
+            _ => vec![],
+        }
+    }
+
     pub fn get_table_name(&self) -> String {
         match self {
             Element::Text(_) => "Text".to_string(),
