@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::type_part::TypePart;
+use crate::{type_part::TypePart, element_type::ElementType};
 
 lazy_static! {
     static ref RE_ENTITY_ITEM: Regex = Regex::new(r#"^[qQ](\d+)$"#).expect("RE_ENTITY_ITEM does not parse");
@@ -22,8 +22,8 @@ pub enum Entity {
     Unknown(String),
 }
 
-impl Entity {
-    pub fn from_str(s: &str) -> Entity {
+impl ElementType for Entity {
+    fn from_str(s: &str) -> Entity {
         if let Some(caps) = RE_ENTITY_ITEM.captures(&s) {
             Entity::Item(caps.get(1).unwrap().as_str().parse().unwrap_or(0))
         } else if let Some(caps) = RE_ENTITY_PROPERTY.captures(&s) {
@@ -48,7 +48,7 @@ impl Entity {
         }
     }
 
-    pub fn get_type_parts(&self) -> Vec<TypePart> {
+    fn get_type_parts(&self) -> Vec<TypePart> {
         match self {
             Entity::LexemeForm(_) => vec![TypePart::Int,TypePart::Int],
             Entity::LexemeSense(_) => vec![TypePart::Int,TypePart::Int],
@@ -56,7 +56,8 @@ impl Entity {
             _ => vec![TypePart::Int],
         }
     }
-    pub fn values(&self) -> Vec<String> {
+
+    fn values(&self) -> Vec<String> {
         match self {
             Entity::Item(q) => vec![format!("{q}")],
             Entity::Property(p) => vec![format!("{p}")],
@@ -68,7 +69,7 @@ impl Entity {
         }
     }
 
-    pub fn to_string(&self) -> String {
+    fn to_string(&self) -> String {
         match self {
             Entity::Item(q) => format!("Q{q}"),
             Entity::Property(p) => format!("P{p}"),
@@ -80,7 +81,7 @@ impl Entity {
         }
     }
 
-    pub fn name(&self) -> &str {
+    fn name(&self) -> &str {
         match self {
             Entity::Item(_) => "EntityItem",
             Entity::Property(_) => "EntityProperty",
@@ -92,11 +93,11 @@ impl Entity {
         }
     }
 
-    pub fn table_name(&self) -> String {
+    fn table_name(&self) -> String {
         self.name().to_string()
     }
 
-    pub fn to_url(&self) -> String {
+    fn to_url(&self) -> String {
         match self {
             Entity::Item(q) => format!("http://www.wikidata.org/entity/Q{q}"),
             Entity::Property(p) => format!("http://www.wikidata.org/entity/P{p}"),
@@ -108,7 +109,7 @@ impl Entity {
         }
     }
 
-    pub fn sql_var_from_name(name: &str, prefix: &str) -> Option<Vec<String>> {
+    fn sql_var_from_name(name: &str, prefix: &str) -> Option<Vec<String>> {
         Some(match name {
             "EntityItem" => vec![format!("{prefix}0")],
             "EntityProperty" => vec![format!("{prefix}0")],
@@ -121,8 +122,8 @@ impl Entity {
         })
     }
 
-    pub fn from_sql_values(name:&str, value: &Vec<String>) -> Option<Entity> {
-        Some(match name {
+    fn from_sql_values(name:&str, value: &Vec<String>) -> Option<Box<Entity>> {
+        Some(Box::new(match name {
             "EntityItem" => Entity::Item(value[0].parse::<usize>().unwrap()),
             "EntityProperty" => Entity::Property(value[0].parse::<usize>().unwrap()),
             "EntityMedia" => Entity::Media(value[0].parse::<usize>().unwrap()),
@@ -137,6 +138,6 @@ impl Entity {
             )),
             "EntityUnknown" => Entity::Unknown(value[0].to_string()),
             _ => return None
-        })
+        }))
     }
 }

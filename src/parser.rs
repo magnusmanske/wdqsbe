@@ -1,6 +1,6 @@
 use std::{io::{self, BufRead}, fs::File, collections::VecDeque, sync::Arc};
 use futures::future::join_all;
-use crate::{element::Element, app_state::AppState, error::WDSQErr, database_wrapper::DatabaseWrapper};
+use crate::{element::Element, app_state::AppState, error::WDSQErr, database_wrapper::DatabaseWrapper, lat_lon::LatLon, element_type::ElementType};
 use bzip2::read::MultiBzDecoder;
 
 const TASKS_IN_PARALLEL: usize = 100;
@@ -46,6 +46,29 @@ impl Parser {
             }
             if !complete { // Didn't end with '>'
                 return None;
+            }
+            if chars.front()==Some(&'^') {
+                while chars.front()==Some(&'^') {
+                    chars.pop_front();
+                }
+                chars.pop_front(); // <
+                let mut var_type = String::new();
+                while chars.front().is_some() && chars.front()!=Some(&'>') {
+                    let c = chars.pop_front().unwrap();
+                    var_type.push(c);
+                }
+                chars.pop_front(); // >
+                match var_type.as_str() {
+                    "http://www.w3.org/2001/XMLSchema#dateTime" => return Some(Element::DateTime(ret)),
+                    "http://www.opengis.net/ont/geosparql#wktLiteral" => return Some(Element::LatLon(LatLon::from_str(&ret))),
+                    "http://www.w3.org/2001/XMLSchema#decimal" => return Some(Element::Float(ret.parse::<f64>().unwrap())),
+                    "http://www.w3.org/2001/XMLSchema#double" => return Some(Element::Float(ret.parse::<f64>().unwrap())), // For now, same as decimal
+                    "http://www.w3.org/2001/XMLSchema#integer" => return Some(Element::Int(ret.parse::<i64>().unwrap())),
+                    other => {
+                        println!("Unknown var_type {other}: {ret}");
+                        return Some(Element::Other(ret));
+                    }
+                }
             }
             let mut language = String::new();
             if chars.front()!=Some(&'@') {

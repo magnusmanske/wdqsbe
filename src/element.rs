@@ -1,5 +1,7 @@
 use regex::Regex;
 
+use crate::element_type::ElementType;
+use crate::lat_lon::LatLon;
 use crate::type_part::TypePart;
 use crate::entity::Entity;
 
@@ -26,6 +28,10 @@ pub enum Element {
     PropertyQualifierValue(String),
     Reference(String),
     Value(String),
+    DateTime(String),
+    LatLon(LatLon),
+    Int(i64),
+    Float(f64),
 
     Latitude,
     Longitude,
@@ -179,6 +185,10 @@ impl Element {
             Element::PropertyQualifierValue(_) => "PropQualifierValue",
             Element::Reference(_) => "Reference",
             Element::Value(_) => "Value",
+            Element::DateTime(_) => "DateTime",
+            Element::LatLon(_) => "LatLon",
+            Element::Int(_) => "Integer",
+            Element::Float(_) => "Decimal",
             Element::Latitude => "Latitude",
             Element::Longitude => "Longitude",
             Element::RdfSchemaLabel => "RdfSchemaLabel",
@@ -215,7 +225,10 @@ impl Element {
 
     pub fn from_sql_values(name:&str, value: &Vec<String>) -> Self {
         if let Some(entity) = Entity::from_sql_values(name, &value) {
-            return Element::Entity(entity);
+            return Element::Entity(*entity);
+        }
+        if let Some(lat_lon) = LatLon::from_sql_values(name, &value) {
+            return Element::LatLon(*lat_lon);
         }
         Element::Other(value[0].to_owned())
     }
@@ -290,6 +303,8 @@ impl Element {
             Element::PropertyQualifier(_) => vec![TypePart::ShortText],
             Element::PropertyQualifierValue(_) => vec![TypePart::ShortText],
             Element::Reference(_) => vec![TypePart::ShortText],
+            Element::Int(_) => vec![TypePart::Int],
+            Element::Float(_) => vec![TypePart::Float],
             Element::Value(_) => vec![TypePart::Text],
             Element::Other(_) => vec![TypePart::Text],
             _ => vec![TypePart::Blank],
@@ -325,6 +340,8 @@ impl Element {
             Element::Reference(s) => vec![s.to_owned()],
             Element::Value(s) => vec![s.to_owned()],
             Element::Other(s) => vec![s.to_owned()],
+            Element::Int(s) => vec![format!("{s}")],
+            Element::Float(s) => vec![format!("{s}")],
             _ => vec![]
         }
     }

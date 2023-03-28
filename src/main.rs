@@ -9,7 +9,10 @@ use error::WDSQErr;
 use query_triples::QueryTriples;
 
 pub mod type_part;
+pub mod element_type;
 pub mod entity;
+pub mod lat_lon;
+pub mod date_time;
 pub mod element;
 pub mod parser;
 pub mod database_table;
