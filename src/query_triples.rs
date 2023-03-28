@@ -1,12 +1,42 @@
 use mysql_async::prelude::*;
-use std::{sync::Arc, collections::HashMap};
+use std::{sync::Arc, collections::HashMap, fmt::{Display, self}};
 
 use crate::{query_part::QueryPart, app_state::AppState, database_table::DatabaseTable, error::WDSQErr, type_part::TypePart, element::Element};
 
 #[derive(Debug, Clone, Default)]
 pub struct DatabaseQueryResult {
-    variables: Vec<String>,
-    rows: Vec<Vec<String>>,
+    variables: Vec<SqlVariable>,
+    rows: Vec<Vec<Option<String>>>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct SqlVariable {
+    name: String,
+    kind: Option<String>,
+}
+
+impl Display for SqlVariable {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.name)
+    }
+}
+
+impl SqlVariable {
+    pub fn sql_value2string(&self,v: &mysql_async::Value) -> Option<String> {
+        let v = match v {
+            mysql_async::Value::NULL => return None,
+            mysql_async::Value::Bytes(b) => String::from_utf8_lossy(b).to_string(),
+            mysql_async::Value::Int(i) => format!("{i}"),
+            mysql_async::Value::UInt(i)=> format!("{i}"),
+            mysql_async::Value::Float(_) => todo!(),
+            mysql_async::Value::Double(_) => todo!(),
+            mysql_async::Value::Date(_, _, _, _, _, _, _) => todo!(),
+            mysql_async::Value::Time(_, _, _, _, _, _) => todo!(),
+        };
+        let element_name = self.kind.to_owned()?;
+        let element = Element::from_sql_values(&element_name,vec![v]);
+        element.to_string()
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -14,7 +44,7 @@ pub struct SqlPart {
     pub sql: String,
     pub values: Vec<String>,
     pub table: Option<String>,
-    pub variables: Vec<String>,
+    pub variables: Vec<SqlVariable>,
 }
 
 impl SqlPart {
@@ -207,7 +237,7 @@ impl QueryTriples {
         Ok(ret.pop())
     }
 
-    async fn get_sql_return_params(&self, table_name: &str) -> Result<(Vec<String>,Vec<String>),WDSQErr> {
+    async fn get_sql_return_params(&self, table_name: &str) -> Result<(Vec<String>,Vec<SqlVariable>),WDSQErr> {
         let mut params = vec![];
         let mut ret_variables = vec![];
         let tables = self.app.tables.read().await;
@@ -221,7 +251,10 @@ impl QueryTriples {
                 1 => {
                     let sql_variable = sql_variables[0].to_owned();
                     params.push(format!("{sql_variable} AS `{variable}`"));
-                    ret_variables.push(variable.to_owned());
+                    ret_variables.push(SqlVariable{
+                        name:variable.to_owned(),
+                        kind: Some(table.names().0.to_owned()),
+                    });
                 }
                 _ => return Err("get_sql_return_params: Too many variables from sql_var_from_name".into()),
             }
@@ -230,7 +263,10 @@ impl QueryTriples {
         if let Some(variable) = &self.p_meta.variable {
             let fixed_value = table.values().join("_"); // TODO check
             params.push(format!("\"{fixed_value}\" AS `{variable}`"));
-            ret_variables.push(variable.to_owned());
+            ret_variables.push(SqlVariable {
+                name:variable.to_owned(),
+                kind: Some(table.names().1.to_owned()),
+            });
         }
 
         if let Some(variable) = &self.o_meta.variable {
@@ -240,7 +276,10 @@ impl QueryTriples {
                 1 => {
                     let sql_variable = sql_variables[0].to_owned();
                     params.push(format!("{sql_variable} AS `{variable}`"));
-                    ret_variables.push(variable.to_owned());
+                    ret_variables.push(SqlVariable {
+                        name:variable.to_owned(),
+                        kind: Some(table.names().2.to_owned()),
+                    });
                 }
                 _ => return Err("get_sql_return_params: Too many variables from sql_var_from_name".into()),
             }
@@ -271,6 +310,10 @@ impl QueryTriples {
     }
 
     pub fn and(&mut self, other: &Self) -> Result<(),WDSQErr> {
+        self.join("INNER JOIN", other)
+    }
+    
+    fn join(&mut self, join: &str, other: &Self) -> Result<(),WDSQErr> {
         let mut result = HashMap::new();
         for (group_key,part) in &self.result {
             if let Some(other_part) = other.result.get(group_key) {
@@ -284,7 +327,7 @@ impl QueryTriples {
                 variables.append(&mut variables_t1.iter().map(|v|format!("t1.{v}")).collect());
                 variables.append(&mut variables_t2.iter().map(|v|format!("t2.{v}")).collect());
                 let join_key: Vec<_> = variables_common.iter().map(|v|format!("t1.{v}=t2.{v}")).collect();
-                let sql = format!("SELECT {} FROM ({}) AS t1\nINNER JOIN ({}) AS t2\nON {}",variables.join(","),part.sql,other_part.sql,join_key.join(","));
+                let sql = format!("SELECT {} FROM ({}) AS t1\n{join} ({}) AS t2\nON {}",variables.join(","),part.sql,other_part.sql,join_key.join(","));
                 let mut values = part.values.clone();
                 values.append(&mut other_part.values.clone());
                 result.insert(group_key.to_owned(),SqlPart{ sql, values, table: None, variables: variables_common });
@@ -304,7 +347,12 @@ impl QueryTriples {
             let results = iter.map_and_drop(|row| row).await?;
             for row in &results {
                 let x = row.to_owned().unwrap();
-                let res: Vec<String> = x.iter().map(|v|v.as_sql(true)).collect();
+                let res: Vec<Option<String>> = x.iter()
+                    .enumerate()
+                    .map(|(col_num,v)|{
+                        part.variables[col_num].sql_value2string(v)
+                            // v.as_sql(true)
+                    }).collect();
                 dsr.rows.push(res);
             }
             ret.insert(group_key.to_owned(),dsr);
