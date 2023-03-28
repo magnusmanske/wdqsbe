@@ -45,7 +45,6 @@ impl DatabaseTable {
     pub fn create_statement(&self) -> String {
         let mut parts = vec![];
         parts.push(format!("CREATE TABLE IF NOT EXISTS `{}` (",&self.name));
-        parts.push(format!("`id` INT(11) NOT NULL AUTO_INCREMENT,"));
         let mut index_k = vec![];
         let mut index_v = vec![];
         for (num,tp) in self.tp1.iter().enumerate() {
@@ -74,13 +73,15 @@ impl DatabaseTable {
         if true {
             let mut unique_index = index_k;
             unique_index.append(&mut index_v);
-            if !unique_index.is_empty() {
-                parts.push(format!("UNIQUE INDEX `index_u` ({}),",unique_index.join(",")));
+            if unique_index.is_empty() {
+                parts.push(format!("`id` INT(11) NOT NULL AUTO_INCREMENT,"));
+                parts.push(format!("PRIMARY KEY (`id`)"));
+            } else {
+                parts.push(format!("PRIMARY KEY `primary_key` ({})",unique_index.join(",")));
             }
         }
 
-        parts.push(format!("PRIMARY KEY (`id`)"));
-        parts.push(format!(") ENGINE=InnoDB"));
+        parts.push(format!(") ENGINE=Aria")); // InnoDB
         parts.join("\n")
     }
 }

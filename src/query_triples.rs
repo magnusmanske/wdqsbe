@@ -34,7 +34,7 @@ impl SqlVariable {
             mysql_async::Value::Time(_, _, _, _, _, _) => todo!(),
         };
         let element_name = self.kind.to_owned()?;
-        let element = Element::from_sql_values(&element_name,vec![v]);
+        let element = Element::from_sql_values(&element_name,&vec![v]);
         element.to_string()
     }
 }

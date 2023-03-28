@@ -1,7 +1,7 @@
 use std::{io::{self, BufRead}, fs::File, collections::VecDeque, sync::Arc};
 use futures::future::join_all;
 use crate::{element::Element, app_state::AppState, error::WDSQErr, database_wrapper::DatabaseWrapper};
-
+use bzip2::read::MultiBzDecoder;
 
 const TASKS_IN_PARALLEL: usize = 100;
 
@@ -94,12 +94,40 @@ impl Parser {
     }
 
     pub async fn import_from_file(&self, filename: &str, app: &Arc<AppState>) -> Result<(),WDSQErr> {
+        match filename.ends_with(".bz2") {
+            true => self.import_from_file_bzip2(filename, app).await,
+            false => self.import_from_file_plain(filename, app).await,
+        }
+    }
+
+    pub async fn import_from_file_plain(&self, filename: &str, app: &Arc<AppState>) -> Result<(),WDSQErr> {
         let wrapper = Arc::new(DatabaseWrapper::new(app.clone()));
         let file = File::open(filename).unwrap();
         let mut lines = vec![];
-        for line in io::BufReader::new(file).lines() {
-            // let _ = self.parse_line(line?, &wrapper).await;
-            lines.push(line?);
+        let reader = io::BufReader::new(file);
+        let mut lines_iter = reader.lines();
+       while let Some(line) = lines_iter.next() {
+            let line = line.unwrap();
+            lines.push(line);
+            if lines.len()>TASKS_IN_PARALLEL {
+                self.process_lines(&lines, &wrapper).await?;
+                lines.clear();
+            }
+        }
+        self.process_lines(&lines, &wrapper).await?;
+        wrapper.flush_insert_caches().await
+    }
+
+
+    pub async fn import_from_file_bzip2(&self, filename: &str, app: &Arc<AppState>) -> Result<(),WDSQErr> {
+        let wrapper = Arc::new(DatabaseWrapper::new(app.clone()));
+        let file = MultiBzDecoder::new(File::open(filename).unwrap());
+        let mut lines = vec![];
+        let reader = io::BufReader::new(file);
+        let mut lines_iter = reader.lines();
+       while let Some(line) = lines_iter.next() {
+            let line = line.unwrap();
+            lines.push(line);
             if lines.len()>TASKS_IN_PARALLEL {
                 self.process_lines(&lines, &wrapper).await?;
                 lines.clear();
