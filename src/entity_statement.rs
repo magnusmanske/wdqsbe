@@ -50,7 +50,7 @@ impl ElementType for EntityStatement {
     }
 
     fn table_name(&self) -> String  {
-        self.name().to_string()
+        format!("ES{}",self.entity.table_name())
     }
 
     fn to_url(&self) -> String  {

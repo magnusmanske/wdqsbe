@@ -75,11 +75,12 @@ impl AppState {
         // texts
         let sql = r#"CREATE TABLE IF NOT EXISTS `texts` (
             `id` INT(11) NOT NULL AUTO_INCREMENT,
-            `value` VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL,
+            `value` VARCHAR(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL,
             PRIMARY KEY (`id`),
             UNIQUE KEY `value` (`value`)
         ) ENGINE=InnoDB"# ;
         conn.exec_drop(sql, ()).await?;
+        // utf8mb4_general_ci
 
 
         // table_list

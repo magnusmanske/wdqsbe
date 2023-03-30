@@ -12,7 +12,9 @@ pub enum DbOperationCacheValue {
     Expression(String), // Some SQL expression
     Usize(usize), // A number
     I16(i16), // signed 16-bit integer
+    U16(u16), // unsigned 16-bit integer
     I32(i32), // signed 16-bit integer
+    U32(u32), // unsigned 16-bit integer
     U8(u8), // unsigned 8-bit integer
 }
 
@@ -24,7 +26,9 @@ impl DbOperationCacheValue {
             DbOperationCacheValue::Expression(s) => s.to_string(),
             DbOperationCacheValue::Usize(u) => format!("{u}"),
             DbOperationCacheValue::I16(u) => format!("{u}"),
+            DbOperationCacheValue::U16(u) => format!("{u}"),
             DbOperationCacheValue::I32(u) => format!("{u}"),
+            DbOperationCacheValue::U32(u) => format!("{u}"),
             DbOperationCacheValue::U8(u) => format!("{u}"),
         }
     }
@@ -36,7 +40,9 @@ impl DbOperationCacheValue {
             DbOperationCacheValue::Expression(_) => None,
             DbOperationCacheValue::Usize(_) => None,
             DbOperationCacheValue::I16(_) => None,
+            DbOperationCacheValue::U16(_) => None,
             DbOperationCacheValue::I32(_) => None,
+            DbOperationCacheValue::U32(_) => None,
             DbOperationCacheValue::U8(_) => None,
         }
     }
@@ -68,7 +74,9 @@ impl ToString for DbOperationCacheValue {
             Self::Expression(s) => s.to_owned(),
             Self::Usize(u) => format!("{u}"),
             Self::I16(u) => format!("{u}"),
+            Self::U16(u) => format!("{u}"),
             Self::I32(u) => format!("{u}"),
+            Self::U32(u) => format!("{u}"),
             Self::U8(u) => format!("{u}"),
         }
     }
@@ -138,9 +146,11 @@ impl DbOperationCache {
         }
         texts.sort();
         texts.dedup();
-        let question_marks = vec!["(?)"; texts.len()].join(",");
-        let sql = format!("INSERT IGNORE INTO `texts` (`value`) VALUES {question_marks}");
-        conn.exec_drop(sql, &texts).await?;
+        for text_chunk in texts.chunks(100) { // chunks prevent "Packet too large" errors
+            let question_marks = vec!["(?)"; text_chunk.len()].join(",");
+            let sql = format!("INSERT IGNORE INTO `texts` (`value`) VALUES {question_marks}");
+            conn.exec_drop(sql, &text_chunk.to_owned()).await?;
+        }
         Ok(())
     }
 
@@ -149,28 +159,29 @@ impl DbOperationCache {
             return Ok(());
         }
 
-        let question_marks: Vec<_> = self.values
-            .iter()
-            .map(|parts|{
-                let ret: Vec<_> = parts.iter().map(|part|part.as_sql_placeholder()).collect();
-                format!("({})",ret.join(","))
-            })
-            .collect();
-        let question_marks = question_marks.join(",");
-        let values: Vec<_> = self.values
-            .iter()
-            .map(|parts|{
-                let ret: Vec<_> = parts.iter().filter_map(|part|part.as_sql_variable()).collect();
-                ret
-            })
-            .flatten()
-            .collect();
-        let sql = format!("{} {question_marks}",self.command);
-        // println!("SQL: {sql}\nVALUES: {values:?}\n");
-
         let mut conn = app.db_conn().await?;
         self.prepare_text(&mut conn).await?;
-        conn.exec_drop(sql, &values).await?;
+        for value_chunk in self.values.chunks(1000) {
+            let question_marks: Vec<_> = value_chunk
+                .iter()
+                .map(|parts|{
+                    let ret: Vec<_> = parts.iter().map(|part|part.as_sql_placeholder()).collect();
+                    format!("({})",ret.join(","))
+                })
+                .collect();
+            let question_marks = question_marks.join(",");
+            let values: Vec<_> = value_chunk
+                .iter()
+                .map(|parts|{
+                    let ret: Vec<_> = parts.iter().filter_map(|part|part.as_sql_variable()).collect();
+                    ret
+                })
+                .flatten()
+                .collect();
+            let sql = format!("{} {question_marks}",self.command);
+            conn.exec_drop(sql, &values).await?;
+
+        }
         self.values.clear();
         Ok(())
     }

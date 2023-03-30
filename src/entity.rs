@@ -13,12 +13,12 @@ lazy_static! {
 
 #[derive(Clone, Debug)]
 pub enum Entity {
-    Item(usize),
-    Property(usize),
-    Media(usize),
-    Lexeme(usize),
-    LexemeForm((usize,usize)),
-    LexemeSense((usize,usize)),
+    Item(u32),
+    Property(u16),
+    Media(u32),
+    Lexeme(u32),
+    LexemeForm((u32,u8)),
+    LexemeSense((u32,u8)),
     Unknown(String),
 }
 
@@ -50,21 +50,24 @@ impl ElementType for Entity {
 
     fn get_type_parts(&self) -> Vec<TypePart> {
         match self {
-            Entity::LexemeForm(_) => vec![TypePart::Int,TypePart::Int],
-            Entity::LexemeSense(_) => vec![TypePart::Int,TypePart::Int],
             Entity::Unknown(_) => vec![TypePart::ShortText],
-            _ => vec![TypePart::Int],
+            Entity::Item(_) => vec![TypePart::U32],
+            Entity::Property(_) => vec![TypePart::U16],
+            Entity::Media(_) => vec![TypePart::U32],
+            Entity::Lexeme(_) => vec![TypePart::U32],
+            Entity::LexemeForm(_) => vec![TypePart::U32,TypePart::U8],
+            Entity::LexemeSense(_) => vec![TypePart::U32,TypePart::U8],
         }
     }
 
     fn values(&self) -> Vec<DbOperationCacheValue> {
         match self {
-            Entity::Item(q) => vec![DbOperationCacheValue::Usize(*q)],
-            Entity::Property(p) => vec![DbOperationCacheValue::Usize(*p)],
-            Entity::Media(m) => vec![DbOperationCacheValue::Usize(*m)],
-            Entity::Lexeme(l) => vec![DbOperationCacheValue::Usize(*l)],
-            Entity::LexemeForm((l,f)) => vec![DbOperationCacheValue::Usize(*l),DbOperationCacheValue::Usize(*f)],
-            Entity::LexemeSense((l,s)) => vec![DbOperationCacheValue::Usize(*l),DbOperationCacheValue::Usize(*s)],
+            Entity::Item(q) => vec![DbOperationCacheValue::U32(*q)],
+            Entity::Property(p) => vec![DbOperationCacheValue::U16(*p)],
+            Entity::Media(m) => vec![DbOperationCacheValue::U32(*m)],
+            Entity::Lexeme(l) => vec![DbOperationCacheValue::U32(*l)],
+            Entity::LexemeForm((l,f)) => vec![DbOperationCacheValue::U32(*l),DbOperationCacheValue::U8(*f)],
+            Entity::LexemeSense((l,s)) => vec![DbOperationCacheValue::U32(*l),DbOperationCacheValue::U8(*s)],
             Entity::Unknown(u) => vec![u.into()],
         }
     }
@@ -94,14 +97,17 @@ impl ElementType for Entity {
     }
 
     fn table_name(&self) -> String {
-        self.name().to_string()
+        match self {
+            Entity::Property(p) => format!("P{}",p),
+            _ => self.name().to_string(),
+        }
     }
 
     fn to_url(&self) -> String {
         match self {
             Entity::Item(q) => format!("http://www.wikidata.org/entity/Q{q}"),
             Entity::Property(p) => format!("http://www.wikidata.org/entity/P{p}"),
-            Entity::Media(m) => format!("http://www.wikidata.org/entity/M{m}"), // TODO FIXME commons?
+            Entity::Media(m) => format!("http://commons.wikimedia.org/entity/M{m}"),
             Entity::Lexeme(l) => format!("http://www.wikidata.org/entity/L{l}"),
             Entity::LexemeForm((l,f)) => format!("http://www.wikidata.org/entity/L{l}-F{f}"),
             Entity::LexemeSense((l,s)) => format!("http://www.wikidata.org/entity/L{l}-S{s}"),
@@ -124,17 +130,17 @@ impl ElementType for Entity {
 
     fn from_sql_values(name:&str, value: &Vec<String>) -> Option<Box<Entity>> {
         Some(Box::new(match name {
-            "EntityItem" => Entity::Item(value[0].parse::<usize>().unwrap()),
-            "EntityProperty" => Entity::Property(value[0].parse::<usize>().unwrap()),
-            "EntityMedia" => Entity::Media(value[0].parse::<usize>().unwrap()),
-            "EntityLexeme" => Entity::Lexeme(value[0].parse::<usize>().unwrap()),
+            "EntityItem" => Entity::Item(value[0].parse::<u32>().unwrap()),
+            "EntityProperty" => Entity::Property(value[0].parse::<u16>().unwrap()),
+            "EntityMedia" => Entity::Media(value[0].parse::<u32>().unwrap()),
+            "EntityLexeme" => Entity::Lexeme(value[0].parse::<u32>().unwrap()),
             "EntityLexemeForm" => Entity::LexemeForm((
-                value[0].parse::<usize>().unwrap(),
-                value[1].parse::<usize>().unwrap()
+                value[0].parse::<u32>().unwrap(),
+                value[1].parse::<u8>().unwrap()
             )),
             "EntityLexemeS" => Entity::LexemeSense((
-                value[0].parse::<usize>().unwrap(),
-                value[1].parse::<usize>().unwrap()
+                value[0].parse::<u32>().unwrap(),
+                value[1].parse::<u8>().unwrap()
             )),
             "EntityUnknown" => Entity::Unknown(value[0].to_string()),
             _ => return None

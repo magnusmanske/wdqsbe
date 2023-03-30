@@ -10,7 +10,9 @@ pub enum TypePart {
     UUID40,
     UUID32,
     I16,
+    U16,
     I32,
+    U32,
     U8,
     Blank,
 }
@@ -26,7 +28,9 @@ impl TypePart {
             TypePart::UUID40 => Some("BINARY(20)"),
             TypePart::UUID32 => Some("BINARY(16)"),
             TypePart::I16 => Some("SMALLINT(6) SIGNED NOT NULL"),
+            TypePart::U16 => Some("SMALLINT(6) UNSIGNED NOT NULL"),
             TypePart::I32 => Some("INT(6) SIGNED NOT NULL"),
+            TypePart::U32 => Some("INT(6) UNSIGNED NOT NULL"),
             TypePart::U8 => Some("TINYINT(3) UNSIGNED NOT NULL"),
             TypePart::Blank => None,
         }
