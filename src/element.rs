@@ -37,6 +37,7 @@ pub enum Element {
     LatLon(LatLon),
     Int(i64),
     Float(f64),
+    Url(TextId),
 
     Latitude,
     Longitude,
@@ -68,8 +69,6 @@ pub enum Element {
     OntologyExternalId,
     OntologyClaim,
     OntologyDirectClaim,
-
-    Url(String),
 }
 
 impl Element {
@@ -114,44 +113,44 @@ impl Element {
                     "ontology#ExternalId" => Some(Element::OntologyExternalId),
                     "ontology#claim" => Some(Element::OntologyClaim),
                     "ontology#directClaim" => Some(Element::OntologyDirectClaim),
-                    _ => Some(Element::Url(element)),
+                    _ => Some(Element::Url(element.into())),
                 }
             }
             "http://purl.org/dc/terms" => {
                 match key.as_str() {
                     "language" => Some(Element::PurlLanguage),
-                    _ => Some(Element::Url(element)),
+                    _ => Some(Element::Url(element.into())),
                 }
             }
             "http://www.w3.org/2000/01" => {
                 match key.as_str() {
                     "rdf-schema#label" => Some(Element::RdfSchemaLabel),
-                    _ => Some(Element::Url(element)),
+                    _ => Some(Element::Url(element.into())),
                 }
             }
             "http://www.w3.org/ns" => {
                 match key.as_str() {
                     "prov#wasDerivedFrom" => Some(Element::WasDerivedFrom),
-                    _ => Some(Element::Url(element)),
+                    _ => Some(Element::Url(element.into())),
                 }
             }
             "http://www.w3.org/1999/02" => {
                 match key.as_str() {
                     "22-rdf-syntax-ns#type" => Some(Element::W3RdfSyntaxNsType),
-                    _ => Some(Element::Url(element)),
+                    _ => Some(Element::Url(element.into())),
                 }
             }
             "http://www.w3.org/ns/lemon" => {
                 match key.as_str() {
                     "ontolex#lexicalForm" => Some(Element::W3OntolexLexicalForm),
                     "ontolex#representation" => Some(Element::W3OntolexRepresentation),
-                    _ => Some(Element::Url(element)),
+                    _ => Some(Element::Url(element.into())),
                 }
             }
             "http://www.w3.org/2004/02/skos" => {
                 match key.as_str() {
                     "core#altLabel" => Some(Element::W3SkosCoreAltLabel),
-                    _ => Some(Element::Url(element)),
+                    _ => Some(Element::Url(element.into())),
                 }
         }
             "http://schema.org" => {
@@ -164,10 +163,10 @@ impl Element {
                     "dateModified" => Some(Element::SchemaOrgDateModified),
                     "Article" => Some(Element::SchemaOrgArticle),
                     "description" => Some(Element::SchemaOrgDescription),
-                    _ => Some(Element::Url(element)),
+                    _ => Some(Element::Url(element.into())),
                 }
             }
-            _ => Some(Element::Url(element)),
+            _ => Some(Element::Url(element.into())),
         }
     }
 
@@ -194,6 +193,7 @@ impl Element {
             Element::LatLon(_) => "LatLon",
             Element::Int(_) => "Integer",
             Element::Float(_) => "Decimal",
+            Element::Url(_) => "Url",
             Element::Latitude => "Latitude",
             Element::Longitude => "Longitude",
             Element::RdfSchemaLabel => "RdfSchemaLabel",
@@ -224,7 +224,6 @@ impl Element {
             Element::OntologyExternalId => "OntologyExternalId",
             Element::OntologyClaim => "OntologyClaim",
             Element::OntologyDirectClaim => "OntologyDirectClaim",
-            Element::Url(_) => "Url",
         }
     }
 
@@ -236,7 +235,7 @@ impl Element {
             return Element::LatLon(*lat_lon);
         }
         // TODO TextId?
-        Element::Url(value[0].to_owned())
+        Element::Url(value[0].to_owned().into())
     }
 
     pub fn to_string(&self) -> Option<String> {
@@ -358,7 +357,7 @@ impl Element {
             Element::Int(_) => vec![TypePart::Int],
             Element::Float(_) => vec![TypePart::Float],
             Element::Value(_) => vec![TypePart::Text],
-            Element::Url(_) => vec![TypePart::Text],
+            Element::Url(_) => vec![TypePart::Int],
             Element::Latitude => vec![TypePart::Blank],
             Element::Longitude => vec![TypePart::Blank],
             Element::RdfSchemaLabel => vec![TypePart::Blank],
@@ -428,7 +427,7 @@ impl Element {
             Element::PropertyQualifierValue(s) => vec![s.into()],
             Element::Reference(uuid) => uuid.values(),
             Element::Value(uuid) => uuid.values(),
-            Element::Url(s) => vec![s.into()],
+            Element::Url(s) => s.values(),
             Element::Int(s) => vec![DbOperationCacheValue::Expression(format!("{s}"))],
             Element::Float(s) => vec![DbOperationCacheValue::Expression(format!("{s}"))],
             Element::Latitude => vec![],

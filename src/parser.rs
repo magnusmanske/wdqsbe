@@ -67,7 +67,7 @@ impl Parser {
                     "http://www.w3.org/2001/XMLSchema#integer" => return Some(Element::Int(ret.parse::<i64>().ok()?)),
                     other => {
                         println!("Unknown var_type {other}: {ret}");
-                        return Some(Element::Url(ret));
+                        return Some(Element::Url(ret.into()));
                     }
                 }
             }
