@@ -103,8 +103,8 @@ impl DbOperationCache {
     }
 
     pub async fn add(&mut self, k: &Element, v: &Element, table: &DatabaseTable, values: Vec<DbOperationCacheValue>, app: &Arc<AppState>) -> Result<(),WDSQErr> {
-        if values.is_empty() { // Nothing to do
-            return Err("DbOperationCache::add: Nothing to do".into());
+        if values.is_empty() {
+            return Err(format!("DbOperationCache::add: Nothing to do for {k:?} / {v:?}").into());
         }
         if self.number_of_values == 0 {
             self.number_of_values = values.len();

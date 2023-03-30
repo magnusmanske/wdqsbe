@@ -35,6 +35,12 @@ impl Parser {
                 return None;
             }
             Element::from_str(ret)
+        } else if *first=='_' {
+            while chars.front().is_some() && chars.front()!=Some(&' ') {
+                let c = chars.pop_front().unwrap();
+                ret.push(c);
+            }
+            Some(Element::Text(ret.into()))
         } else if *first=='"' {
             let _ = chars.pop_front()?;
             let mut complete = false;
@@ -93,6 +99,10 @@ impl Parser {
         let part2 = Self::read_part(&mut chars).ok_or_else(||WDSQErr::ParserError(line.to_owned()))?;
         Self::skip_whitespace(&mut chars);
         let part3 = Self::read_part(&mut chars).ok_or_else(||WDSQErr::ParserError(line.to_owned()))?;
+        match &part2 {
+            Element::Url(url) => println!("Property is URL {url:?}"),
+            _ => {}
+        }
         wrapper.add(part1,part2,part3).await?;
         Ok(())
     }
@@ -109,7 +119,7 @@ impl Parser {
                 tokio::spawn(async { Self::parse_line(line, wrapper).await })
             })
             .collect();
-        wrapper.first_err(join_all(tasks).await)?;
+        wrapper.first_err(join_all(tasks).await, false)?;
         Ok(())
     }
 
