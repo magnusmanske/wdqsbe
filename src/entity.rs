@@ -1,6 +1,6 @@
 use regex::Regex;
 
-use crate::{type_part::TypePart, element_type::ElementType};
+use crate::{type_part::TypePart, element_type::ElementType, db_operation_cache::DbOperationCacheValue};
 
 lazy_static! {
     static ref RE_ENTITY_ITEM: Regex = Regex::new(r#"^[qQ](\d+)$"#).expect("RE_ENTITY_ITEM does not parse");
@@ -23,28 +23,28 @@ pub enum Entity {
 }
 
 impl ElementType for Entity {
-    fn from_str(s: &str) -> Entity {
+    fn from_str(s: &str) -> Option<Box<Self>> {
         if let Some(caps) = RE_ENTITY_ITEM.captures(&s) {
-            Entity::Item(caps.get(1).unwrap().as_str().parse().unwrap_or(0))
+            Some(Box::new(Entity::Item(caps.get(1).unwrap().as_str().parse().unwrap_or(0))))
         } else if let Some(caps) = RE_ENTITY_PROPERTY.captures(&s) {
-            Entity::Property(caps.get(1).unwrap().as_str().parse().unwrap_or(0))
+            Some(Box::new(Entity::Property(caps.get(1).unwrap().as_str().parse().unwrap_or(0))))
         } else if let Some(caps) = RE_ENTITY_MEDIA.captures(&s) {
-            Entity::Media(caps.get(1).unwrap().as_str().parse().unwrap_or(0))
+            Some(Box::new(Entity::Media(caps.get(1).unwrap().as_str().parse().unwrap_or(0))))
         } else if let Some(caps) = RE_ENTITY_LEXEME.captures(&s) {
-            Entity::Lexeme(caps.get(1).unwrap().as_str().parse().unwrap_or(0))
+            Some(Box::new(Entity::Lexeme(caps.get(1).unwrap().as_str().parse().unwrap_or(0))))
         } else if let Some(caps) = RE_ENTITY_LEXEME_FORM.captures(&s) {
-            Entity::LexemeForm((
+            Some(Box::new(Entity::LexemeForm((
                 caps.get(1).unwrap().as_str().parse().unwrap_or(0),
                 caps.get(2).unwrap().as_str().parse().unwrap_or(0)
-            ))
+            ))))
         } else if let Some(caps) = RE_ENTITY_LEXEME_SENSE.captures(&s) {
-            Entity::LexemeSense((
+            Some(Box::new(Entity::LexemeSense((
                 caps.get(1).unwrap().as_str().parse().unwrap_or(0),
                 caps.get(2).unwrap().as_str().parse().unwrap_or(0)
-            ))
+            ))))
         } else {
             println!("Unknown entity pattern: '{s}'");
-            Entity::Unknown(s.to_string())
+            Some(Box::new(Entity::Unknown(s.to_string())))
         }
     }
 
@@ -57,15 +57,15 @@ impl ElementType for Entity {
         }
     }
 
-    fn values(&self) -> Vec<String> {
+    fn values(&self) -> Vec<DbOperationCacheValue> {
         match self {
-            Entity::Item(q) => vec![format!("{q}")],
-            Entity::Property(p) => vec![format!("{p}")],
-            Entity::Media(m) => vec![format!("{m}")],
-            Entity::Lexeme(l) => vec![format!("{l}")],
-            Entity::LexemeForm((l,f)) => vec![format!("{l}"),format!("{f}")],
-            Entity::LexemeSense((l,s)) => vec![format!("{l}"),format!("{s}")],
-            Entity::Unknown(u) => vec![u.to_string()],
+            Entity::Item(q) => vec![DbOperationCacheValue::Usize(*q)],
+            Entity::Property(p) => vec![DbOperationCacheValue::Usize(*p)],
+            Entity::Media(m) => vec![DbOperationCacheValue::Usize(*m)],
+            Entity::Lexeme(l) => vec![DbOperationCacheValue::Usize(*l)],
+            Entity::LexemeForm((l,f)) => vec![DbOperationCacheValue::Usize(*l),DbOperationCacheValue::Usize(*f)],
+            Entity::LexemeSense((l,s)) => vec![DbOperationCacheValue::Usize(*l),DbOperationCacheValue::Usize(*s)],
+            Entity::Unknown(u) => vec![u.into()],
         }
     }
 

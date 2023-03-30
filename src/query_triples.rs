@@ -183,7 +183,7 @@ impl QueryTriples {
                     .filter(|(_num,part)|**part!=TypePart::Blank)
                     .map(|(num,_part)|num)
                     .zip(element.values().iter())
-                    .map(|(num,value)|SqlPart::new(format!("`{key}{num}`=?"),value.to_owned()))
+                    .map(|(num,value)|SqlPart::new(format!("`{key}{num}`=?"),value.to_string()))
                     .collect()
             }
             QueryPart::Unknown => vec![],
@@ -241,7 +241,7 @@ impl QueryTriples {
         let mut params = vec![];
         let mut ret_variables = vec![];
         let tables = self.app.tables.read().await;
-        let table = tables.get(table_name).ok_or_else(|| WDSQErr::String("get_sql_return_params".into()))?;
+        let table = tables.get(table_name).ok_or_else(|| WDSQErr::String(format!("get_sql_return_params: Missing table '{table_name}'")))?;
         let names = table.names().to_owned();
 
         if let Some(variable) = &self.s_meta.variable {
@@ -260,13 +260,15 @@ impl QueryTriples {
             }
         }
 
-        if let Some(variable) = &self.p_meta.variable {
-            let fixed_value = table.values().join("_"); // TODO check
-            params.push(format!("\"{fixed_value}\" AS `{variable}`"));
-            ret_variables.push(SqlVariable {
-                name:variable.to_owned(),
-                kind: Some(table.names().1.to_owned()),
-            });
+        if let Some(_variable) = &self.p_meta.variable {
+            // let fixed_value = table.values().join("_"); // TODO check
+            // let fixed_value = "SOMETHING"; // TODO FIXME
+            // params.push(format!("\"{fixed_value}\" AS `{variable}`"));
+            // ret_variables.push(SqlVariable {
+            //     name:variable.to_owned(),
+            //     kind: Some(table.names().1.to_owned()),
+            // });
+            todo!();
         }
 
         if let Some(variable) = &self.o_meta.variable {

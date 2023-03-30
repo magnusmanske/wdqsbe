@@ -8,7 +8,7 @@ pub enum WDSQErr {
     Serde(Arc<serde_json::Error>),
     ParseInt(ParseIntError),
     FromUtf8(FromUtf8Error),
-    ParserError,
+    ParserError(String),
 }
 
 impl std::error::Error for WDSQErr {}
@@ -22,7 +22,7 @@ impl std::fmt::Display for WDSQErr {
             WDSQErr::Serde(e) => f.write_str(&e.to_string()),
             WDSQErr::ParseInt(e) => f.write_str(&e.to_string()),
             WDSQErr::FromUtf8(e) => f.write_str(&e.to_string()),
-            WDSQErr::ParserError => f.write_str("Parser error"),
+            WDSQErr::ParserError(e) => f.write_str(&e.to_string()),
         }
     }
 }

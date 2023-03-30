@@ -18,13 +18,11 @@ impl DatabaseWrapper {
         }
     }
 
-
     pub async fn add(&self, s: Element, p: Element, o: Element) -> Result<(),WDSQErr> {
         let table = self.app.table(s.clone(),p,o.clone()).await?;
         let mut values = s.values();
         values.append(&mut o.values());
-        let mut cache = self.insert_cache.write().await;
-        cache
+        self.insert_cache.write().await
             .entry(table.name.to_owned())
             .or_insert(DbOperationCache::new())
             .add(&s, &o, &table, values, &self.app)
@@ -37,10 +35,11 @@ impl DatabaseWrapper {
         let tasks: Vec<_> = insert_cache
             .iter_mut()
             .map(|(_table_name,cache)|{
-                let mut cache = cache.clone();
+                let mut cache_clone = cache.clone();
+                cache.clear();
                 let app = self.app.clone();
                 tokio::spawn(async move {
-                    cache.force_flush(&app).await
+                    cache_clone.force_flush(&app).await
                 })
             })
             .collect();
@@ -50,11 +49,13 @@ impl DatabaseWrapper {
     }
 
     pub fn first_err(&self, results: Vec<Result<Result<(), WDSQErr>, tokio::task::JoinError>>) -> Result<(),WDSQErr> {
-        let result = results
+        let errors: Vec<_> = results
             .iter()
+            .filter_map(|result|result.as_ref().ok()) // Remove Join errors to get to the WDSQErr
             .filter(|result|result.is_err())
-            .nth(0);
-        if let Some(Err(e)) = result {
+            .collect();
+        if let Some(Err(e)) = errors.get(0) {
+            println!("{errors:?}");
             return Err(e.to_string().into());
         }
         Ok(())

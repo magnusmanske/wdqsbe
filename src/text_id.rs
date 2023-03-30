@@ -7,43 +7,43 @@ lazy_static! {
 }
 
 #[derive(Clone, Debug)]
-pub struct LatLon {
-    latitude: f64,
-    longitude: f64,
+pub struct TextId {
+    s: String,
 }
 
-impl ElementType for LatLon {
+impl From<String> for TextId {
+    fn from(s: String) -> Self {
+        Self{s}
+    }
+}
+impl ElementType for TextId {
     fn from_str(s: &str) -> Option<Box<Self>> {
-        if let Some(caps) = RE_POINT.captures(&s) {
-            return Some(Box::new(LatLon {
-                latitude: caps.get(1)?.as_str().parse::<f64>().ok()?,
-                longitude: caps.get(2)?.as_str().parse::<f64>().ok()?,
-            }));
-        }
-        None
+        Some(Box::new(Self { s: s.to_string() }))
     }
 
-    fn from_sql_values(name:&str, value: &Vec<String>) -> Option<Box<Self>> {
+    fn from_sql_values(name:&str, _value: &Vec<String>) -> Option<Box<Self>> {
         match name {
-            "LatLon" => LatLon::from_str(&value[0].parse::<String>().ok()?),
+            // "TextId" => TextId::from_str(&value[0].parse::<String>().unwrap()),
             _ => None,
         }
     }
 
     fn get_type_parts(&self) -> Vec<crate::type_part::TypePart>  {
-        vec![TypePart::Point]
+        vec![TypePart::Int]
     }
 
     fn values(&self) -> Vec<DbOperationCacheValue> {
-        vec![DbOperationCacheValue::Expression(format!("PointFromText(\"{}\")", self.to_string()))]
+        //let safe_s = self.s.replace('"',""); // TODO FIXME
+        //format!("(SELECT `id` FROM `texts` WHERE `value`=\"{safe_s}\")")
+        vec![DbOperationCacheValue::Text(self.s.to_owned())]
     }
 
     fn to_string(&self) -> String  {
-        format!("Point({} {})", self.latitude, self.longitude)
+        self.s.to_owned()
     }
 
     fn name(&self) -> &str  {
-        "LatLon"
+        "TextId"
     }
 
     fn table_name(&self) -> String  {

@@ -1,9 +1,14 @@
 use regex::Regex;
 
+use crate::date_time::DateTime;
+use crate::db_operation_cache::DbOperationCacheValue;
 use crate::element_type::ElementType;
+use crate::entity_statement::EntityStatement;
 use crate::lat_lon::LatLon;
+use crate::text_id::TextId;
 use crate::type_part::TypePart;
 use crate::entity::Entity;
+use crate::uuid::{UUID40, UUID32};
 
 lazy_static! {
     static ref RE_WIKI_URL: Regex = Regex::new(r#"^https?://(.+?)/wiki/(.+)$"#).expect("RE_WIKI_URL does not parse");
@@ -11,12 +16,12 @@ lazy_static! {
 
 #[derive(Clone, Debug)]
 pub enum Element {
-    Text(String),
-    TextInLanguage((String,String)), // (text,language)
-    WikiPage((String,String)), // (server,page)
+    Text(TextId),
+    TextInLanguage((TextId,TextId)), // (text,language)
+    WikiPage((TextId,TextId)), // (server,page)
     Entity(Entity),
-    EntityStatement(String),
-    Property(String),
+    EntityStatement(EntityStatement),
+    Property(Entity),
     PropertyDirect(String),
     PropertyDirectNormalized(String),
     PropertyStatement(String),
@@ -26,9 +31,9 @@ pub enum Element {
     PropertyReferenceValue(String),
     PropertyQualifier(String),
     PropertyQualifierValue(String),
-    Reference(String),
-    Value(String),
-    DateTime(String),
+    Reference(UUID40),
+    Value(UUID32),
+    DateTime(DateTime),
     LatLon(LatLon),
     Int(i64),
     Float(f64),
@@ -64,7 +69,7 @@ pub enum Element {
     OntologyClaim,
     OntologyDirectClaim,
 
-    Other(String),
+    Url(String),
 }
 
 impl Element {
@@ -72,15 +77,15 @@ impl Element {
         if let Some(caps) = RE_WIKI_URL.captures(&element) {
             let server = caps.get(1).map_or("", |m| m.as_str()).to_string();
             let page = caps.get(2).map_or("", |m| m.as_str()).to_string();
-            return Some(Element::WikiPage((server,page)))
+            return Some(Element::WikiPage((server.into(),page.into())))
         }
         let mut parts: Vec<_> = element.split("/").collect();
         let key = parts.pop().unwrap().to_string();
         let root = parts.join("/");
         match root.as_str() {
-            "http://www.wikidata.org/entity" => Some(Element::Entity(Entity::from_str(&key))),
-            "http://www.wikidata.org/entity/statement" => Some(Element::EntityStatement(key)),
-            "http://www.wikidata.org/prop" => Some(Element::Property(key)),
+            "http://www.wikidata.org/entity" => Some(Element::Entity(*Entity::from_str(&key)?)),
+            "http://www.wikidata.org/entity/statement" => Some(Element::EntityStatement(*EntityStatement::from_str(&key)?)),
+            "http://www.wikidata.org/prop" => Some(Element::Property(*Entity::from_str(&key)?)),
             "http://www.wikidata.org/prop/direct" => Some(Element::PropertyDirect(key)),
             "http://www.wikidata.org/prop/direct-normalized" => Some(Element::PropertyDirectNormalized(key)),
             "http://www.wikidata.org/prop/statement" => Some(Element::PropertyStatement(key)),
@@ -90,8 +95,8 @@ impl Element {
             "http://www.wikidata.org/prop/reference/value" => Some(Element::PropertyReferenceValue(key)),
             "http://www.wikidata.org/prop/qualifier" => Some(Element::PropertyQualifier(key)),
             "http://www.wikidata.org/prop/qualifier/value" => Some(Element::PropertyQualifierValue(key)),
-            "http://www.wikidata.org/reference" => Some(Element::Reference(key)),
-            "http://www.wikidata.org/value" => Some(Element::Value(key)),
+            "http://www.wikidata.org/reference" => Some(Element::Reference(*UUID40::from_str(&key)?)),
+            "http://www.wikidata.org/value" => Some(Element::Value(key.into())),
             "http://wikiba.se" => {
                 match key.as_str() {
                     "ontology#geoLongitude" => Some(Element::Longitude),
@@ -109,44 +114,44 @@ impl Element {
                     "ontology#ExternalId" => Some(Element::OntologyExternalId),
                     "ontology#claim" => Some(Element::OntologyClaim),
                     "ontology#directClaim" => Some(Element::OntologyDirectClaim),
-                    _ => Some(Element::Other(element)),
+                    _ => Some(Element::Url(element)),
                 }
             }
             "http://purl.org/dc/terms" => {
                 match key.as_str() {
                     "language" => Some(Element::PurlLanguage),
-                    _ => Some(Element::Other(element)),
+                    _ => Some(Element::Url(element)),
                 }
             }
             "http://www.w3.org/2000/01" => {
                 match key.as_str() {
                     "rdf-schema#label" => Some(Element::RdfSchemaLabel),
-                    _ => Some(Element::Other(element)),
+                    _ => Some(Element::Url(element)),
                 }
             }
             "http://www.w3.org/ns" => {
                 match key.as_str() {
                     "prov#wasDerivedFrom" => Some(Element::WasDerivedFrom),
-                    _ => Some(Element::Other(element)),
+                    _ => Some(Element::Url(element)),
                 }
             }
             "http://www.w3.org/1999/02" => {
                 match key.as_str() {
                     "22-rdf-syntax-ns#type" => Some(Element::W3RdfSyntaxNsType),
-                    _ => Some(Element::Other(element)),
+                    _ => Some(Element::Url(element)),
                 }
             }
             "http://www.w3.org/ns/lemon" => {
                 match key.as_str() {
                     "ontolex#lexicalForm" => Some(Element::W3OntolexLexicalForm),
                     "ontolex#representation" => Some(Element::W3OntolexRepresentation),
-                    _ => Some(Element::Other(element)),
+                    _ => Some(Element::Url(element)),
                 }
             }
             "http://www.w3.org/2004/02/skos" => {
                 match key.as_str() {
                     "core#altLabel" => Some(Element::W3SkosCoreAltLabel),
-                    _ => Some(Element::Other(element)),
+                    _ => Some(Element::Url(element)),
                 }
         }
             "http://schema.org" => {
@@ -159,10 +164,10 @@ impl Element {
                     "dateModified" => Some(Element::SchemaOrgDateModified),
                     "Article" => Some(Element::SchemaOrgArticle),
                     "description" => Some(Element::SchemaOrgDescription),
-                    _ => Some(Element::Other(element)),
+                    _ => Some(Element::Url(element)),
                 }
             }
-            _ => Some(Element::Other(element)),
+            _ => Some(Element::Url(element)),
         }
     }
 
@@ -219,7 +224,7 @@ impl Element {
             Element::OntologyExternalId => "OntologyExternalId",
             Element::OntologyClaim => "OntologyClaim",
             Element::OntologyDirectClaim => "OntologyDirectClaim",
-            Element::Other(_) => "Other",
+            Element::Url(_) => "Url",
         }
     }
 
@@ -230,11 +235,12 @@ impl Element {
         if let Some(lat_lon) = LatLon::from_sql_values(name, &value) {
             return Element::LatLon(*lat_lon);
         }
-        Element::Other(value[0].to_owned())
+        // TODO TextId?
+        Element::Url(value[0].to_owned())
     }
 
     pub fn to_string(&self) -> Option<String> {
-        match self {
+        match self { // TODO more types?
             Element::Entity(e) => Some(e.to_url()),
             Element::Text(t) => Some(t.to_string()),
             _ => None
@@ -250,7 +256,7 @@ impl Element {
             "Text" => vec![format!("{prefix}0")],
             "TextInLanguage" => vec![format!("{prefix}0"),format!("{prefix}1")],
             "WikiPage" => vec![format!("{prefix}0"),format!("{prefix}1")],
-            "EntityStatement" => vec![format!("{prefix}0")],
+            "EntityStatement" => EntityStatement::sql_var_from_name(name, prefix).unwrap(),
             "Property" => vec![format!("{prefix}0")],
             "PropertyDirect" => vec![format!("{prefix}0")],
             "PropertyDirectNormalized" => vec![format!("{prefix}0")],
@@ -261,17 +267,21 @@ impl Element {
             "PropertyReferenceValue" => vec![format!("{prefix}0")],
             "PropertyQualifier" => vec![format!("{prefix}0")],
             "PropertyQualifierValue" => vec![format!("{prefix}0")],
+            "DateTime" => DateTime::sql_var_from_name(name, prefix).unwrap(),
             "Reference" => vec![format!("{prefix}0")],
             "Value" => vec![format!("{prefix}0")],
-            "Other" => vec![format!("{prefix}0")],
-            _ => vec![],
+            "Url" => vec![format!("{prefix}0")],
+            other => {
+                println!("Element::sql_var_from_name: for '{other}'");
+                vec![]
+            }
         }
     }
 
     pub fn get_table_name(&self) -> String {
         match self {
             Element::Entity(e) => e.table_name(),
-            Element::Property(s) => format!("Property_{s}"),
+            Element::Property(p) => p.table_name(),//format!("Property_{s}"),
             Element::PropertyDirect(s) => format!("PropertyDirect_{s}"),
             Element::PropertyDirectNormalized(s) => format!("PropertyDirectNormalized_{s}"),
             Element::PropertyStatement(s) => format!("PropertyStatement_{s}"),
@@ -281,17 +291,60 @@ impl Element {
             Element::PropertyReferenceValue(s) => format!("PropertyReferenceValue_{s}"),
             Element::PropertyQualifier(s) => format!("PropertyQualifier_{s}"),
             Element::PropertyQualifierValue(s) => format!("PropertyQualifierValue_{s}"),
-            _ => self.name().to_string(),
+            Element::Url(_) => self.name().to_string(),
+            Element::Text(_) => self.name().to_string(),
+            Element::TextInLanguage(_) => self.name().to_string(),
+            Element::WikiPage(_) => self.name().to_string(),
+            Element::EntityStatement(es) => es.table_name(),
+            Element::Reference(_) => self.name().to_string(),
+            Element::Value(_) => self.name().to_string(),
+            Element::DateTime(_) => self.name().to_string(),
+            Element::LatLon(_) => self.name().to_string(),
+            Element::Int(_) => self.name().to_string(),
+            Element::Float(_) => self.name().to_string(),
+            Element::Latitude => self.name().to_string(),
+            Element::Longitude => self.name().to_string(),
+            Element::RdfSchemaLabel => self.name().to_string(),
+            Element::WasDerivedFrom => self.name().to_string(),
+            Element::PurlLanguage => self.name().to_string(),
+            Element::W3RdfSyntaxNsType => self.name().to_string(),
+            Element::W3SkosCoreAltLabel => self.name().to_string(),
+            Element::W3OntolexLexicalForm => self.name().to_string(),
+            Element::W3OntolexRepresentation => self.name().to_string(),
+            Element::SchemaOrgInLanguage => self.name().to_string(),
+            Element::SchemaOrgIsPartOf => self.name().to_string(),
+            Element::SchemaOrgAbout => self.name().to_string(),
+            Element::SchemaOrgDescription => self.name().to_string(),
+            Element::SchemaOrgName => self.name().to_string(),
+            Element::SchemaOrgArticle => self.name().to_string(),
+            Element::SchemaOrgDateModified => self.name().to_string(),
+            Element::SchemaOrgVersion => self.name().to_string(),
+            Element::OntologyBadge => self.name().to_string(),
+            Element::OntologyRank => self.name().to_string(),
+            Element::OntologyBestRank => self.name().to_string(),
+            Element::OntologyNormalRank => self.name().to_string(),
+            Element::OntologyIdentifiers => self.name().to_string(),
+            Element::OntologyStatementProperty => self.name().to_string(),
+            Element::OntologyLemma => self.name().to_string(),
+            Element::OntologyStatements => self.name().to_string(),
+            Element::OntologySitelinks => self.name().to_string(),
+            Element::OntologyPropertyType => self.name().to_string(),
+            Element::OntologyExternalId => self.name().to_string(),
+            Element::OntologyClaim => self.name().to_string(),
+            Element::OntologyDirectClaim => self.name().to_string(),
         }
     }
 
     pub fn get_type_parts(&self) -> Vec<TypePart> {
         match self {
-            Element::Text(_) => vec![TypePart::Text],
-            Element::TextInLanguage(_) => vec![TypePart::Text,TypePart::ShortText],
-            Element::WikiPage(_) => vec![TypePart::ShortText,TypePart::Text],
+            Element::Text(_) => vec![TypePart::Int],
+            Element::TextInLanguage(_) => vec![TypePart::Int,TypePart::Int], // TODO use get_type_parts
+            Element::WikiPage(_) => vec![TypePart::Int,TypePart::Int], // TODO use get_type_parts
             Element::Entity(e) => e.get_type_parts(),
-            Element::EntityStatement(_) => vec![TypePart::ShortText],
+            Element::LatLon(l) => l.get_type_parts(),
+            Element::DateTime(dt) => dt.get_type_parts(),
+            Element::Reference(r) => r.get_type_parts(),
+            Element::EntityStatement(es) => es.get_type_parts(),
             Element::Property(_) => vec![TypePart::ShortText],
             Element::PropertyDirect(_) => vec![TypePart::ShortText],
             Element::PropertyDirectNormalized(_) => vec![TypePart::ShortText],
@@ -302,12 +355,40 @@ impl Element {
             Element::PropertyReferenceValue(_) => vec![TypePart::ShortText],
             Element::PropertyQualifier(_) => vec![TypePart::ShortText],
             Element::PropertyQualifierValue(_) => vec![TypePart::ShortText],
-            Element::Reference(_) => vec![TypePart::ShortText],
             Element::Int(_) => vec![TypePart::Int],
             Element::Float(_) => vec![TypePart::Float],
             Element::Value(_) => vec![TypePart::Text],
-            Element::Other(_) => vec![TypePart::Text],
-            _ => vec![TypePart::Blank],
+            Element::Url(_) => vec![TypePart::Text],
+            Element::Latitude => vec![TypePart::Blank],
+            Element::Longitude => vec![TypePart::Blank],
+            Element::RdfSchemaLabel => vec![TypePart::Blank],
+            Element::WasDerivedFrom => vec![TypePart::Blank],
+            Element::PurlLanguage => vec![TypePart::Blank],
+            Element::W3RdfSyntaxNsType => vec![TypePart::Blank],
+            Element::W3SkosCoreAltLabel => vec![TypePart::Blank],
+            Element::W3OntolexLexicalForm => vec![TypePart::Blank],
+            Element::W3OntolexRepresentation => vec![TypePart::Blank],
+            Element::SchemaOrgInLanguage => vec![TypePart::Blank],
+            Element::SchemaOrgIsPartOf => vec![TypePart::Blank],
+            Element::SchemaOrgAbout => vec![TypePart::Blank],
+            Element::SchemaOrgDescription => vec![TypePart::Blank],
+            Element::SchemaOrgName => vec![TypePart::Blank],
+            Element::SchemaOrgArticle => vec![TypePart::Blank],
+            Element::SchemaOrgDateModified => vec![TypePart::Blank],
+            Element::SchemaOrgVersion => vec![TypePart::Blank],
+            Element::OntologyBadge => vec![TypePart::Blank],
+            Element::OntologyRank => vec![TypePart::Blank],
+            Element::OntologyBestRank => vec![TypePart::Blank],
+            Element::OntologyNormalRank => vec![TypePart::Blank],
+            Element::OntologyIdentifiers => vec![TypePart::Blank],
+            Element::OntologyStatementProperty => vec![TypePart::Blank],
+            Element::OntologyLemma => vec![TypePart::Blank],
+            Element::OntologyStatements => vec![TypePart::Blank],
+            Element::OntologySitelinks => vec![TypePart::Blank],
+            Element::OntologyPropertyType => vec![TypePart::Blank],
+            Element::OntologyExternalId => vec![TypePart::Blank],
+            Element::OntologyClaim => vec![TypePart::Blank],
+            Element::OntologyDirectClaim => vec![TypePart::Blank],
         }
     }
 
@@ -320,29 +401,66 @@ impl Element {
             .collect()
     }
 
-    pub fn values(&self) -> Vec<String> {
+    pub fn values(&self) -> Vec<DbOperationCacheValue> {
         match self {
-            Element::TextInLanguage(til) => vec![til.0.to_owned(),til.1.to_owned()],
-            Element::WikiPage(wp) => vec![wp.0.to_owned(),wp.1.to_owned()],
-            Element::Text(s) => vec![s.to_owned()],
+            Element::TextInLanguage(til) => vec![
+                til.0.values()[0].to_owned(),
+                til.1.values()[0].to_owned(),
+                ],
+            Element::WikiPage(wp) => vec![
+                wp.0.values()[0].to_owned(),
+                wp.1.values()[0].to_owned(),
+                ],
+            Element::Text(t) => t.values(),
+            Element::LatLon(l) => l.values(),
             Element::Entity(e) => e.values(),
-            Element::EntityStatement(s) => vec![s.to_owned()],
-            Element::Property(s) => vec![s.to_owned()],
-            Element::PropertyDirect(s) => vec![s.to_owned()],
-            Element::PropertyDirectNormalized(s) => vec![s.to_owned()],
-            Element::PropertyStatement(s) => vec![s.to_owned()],
-            Element::PropertyStatementValue(s) => vec![s.to_owned()],
-            Element::PropertyStatementValueNormalized(s) => vec![s.to_owned()],
-            Element::PropertyReference(s) => vec![s.to_owned()],
-            Element::PropertyReferenceValue(s) => vec![s.to_owned()],
-            Element::PropertyQualifier(s) => vec![s.to_owned()],
-            Element::PropertyQualifierValue(s) => vec![s.to_owned()],
-            Element::Reference(s) => vec![s.to_owned()],
-            Element::Value(s) => vec![s.to_owned()],
-            Element::Other(s) => vec![s.to_owned()],
-            Element::Int(s) => vec![format!("{s}")],
-            Element::Float(s) => vec![format!("{s}")],
-            _ => vec![]
+            Element::EntityStatement(es) => es.values(),
+            Element::DateTime(dt) => dt.values(),
+            Element::Property(p) => p.values(),
+            Element::PropertyDirect(s) => vec![s.into()],
+            Element::PropertyDirectNormalized(s) => vec![s.into()],
+            Element::PropertyStatement(s) => vec![s.into()],
+            Element::PropertyStatementValue(s) => vec![s.into()],
+            Element::PropertyStatementValueNormalized(s) => vec![s.into()],
+            Element::PropertyReference(s) => vec![s.into()],
+            Element::PropertyReferenceValue(s) => vec![s.into()],
+            Element::PropertyQualifier(s) => vec![s.into()],
+            Element::PropertyQualifierValue(s) => vec![s.into()],
+            Element::Reference(uuid) => uuid.values(),
+            Element::Value(uuid) => uuid.values(),
+            Element::Url(s) => vec![s.into()],
+            Element::Int(s) => vec![DbOperationCacheValue::Expression(format!("{s}"))],
+            Element::Float(s) => vec![DbOperationCacheValue::Expression(format!("{s}"))],
+            Element::Latitude => vec![],
+            Element::Longitude => vec![],
+            Element::RdfSchemaLabel => vec![],
+            Element::WasDerivedFrom => vec![],
+            Element::PurlLanguage => vec![],
+            Element::W3RdfSyntaxNsType => vec![],
+            Element::W3SkosCoreAltLabel => vec![],
+            Element::W3OntolexLexicalForm => vec![],
+            Element::W3OntolexRepresentation => vec![],
+            Element::SchemaOrgInLanguage => vec![],
+            Element::SchemaOrgIsPartOf => vec![],
+            Element::SchemaOrgAbout => vec![],
+            Element::SchemaOrgDescription => vec![],
+            Element::SchemaOrgName => vec![],
+            Element::SchemaOrgArticle => vec![],
+            Element::SchemaOrgDateModified => vec![],
+            Element::SchemaOrgVersion => vec![],
+            Element::OntologyBadge => vec![],
+            Element::OntologyRank => vec![],
+            Element::OntologyBestRank => vec![],
+            Element::OntologyNormalRank => vec![],
+            Element::OntologyIdentifiers => vec![],
+            Element::OntologyStatementProperty => vec![],
+            Element::OntologyLemma => vec![],
+            Element::OntologyStatements => vec![],
+            Element::OntologySitelinks => vec![],
+            Element::OntologyPropertyType => vec![],
+            Element::OntologyExternalId => vec![],
+            Element::OntologyClaim => vec![],
+            Element::OntologyDirectClaim => vec![],
         }
     }
 }

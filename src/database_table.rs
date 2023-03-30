@@ -1,5 +1,5 @@
 use serde::{Serialize, Deserialize};
-use crate::{element::Element, type_part::TypePart};
+use crate::{element::Element, type_part::TypePart, db_operation_cache::DbOperationCacheValue};
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DatabaseTable {
@@ -8,7 +8,7 @@ pub struct DatabaseTable {
     tp2: Vec<TypePart>,
     names: (String,String,String),
     property: String,
-    values: Vec<String>,
+    values: Vec<DbOperationCacheValue>,
 }
 
 impl DatabaseTable {
@@ -34,7 +34,7 @@ impl DatabaseTable {
         &self.property
     }
 
-    pub fn values(&self) -> &Vec<String> {
+    pub fn values(&self) -> &Vec<DbOperationCacheValue> {
         &self.values
     }
 
@@ -59,7 +59,17 @@ impl DatabaseTable {
                 index_v.push(format!("`v{num}`"));
             }
         }
-        // Create separate key and value indices
+
+        self.tp1.iter().enumerate().filter(|(_num,tp)|**tp==TypePart::Point).for_each(|(num,_tp)|parts.push(format!("SPATIAL INDEX(k{num}),")));
+        self.tp2.iter().enumerate().filter(|(_num,tp)|**tp==TypePart::Point).for_each(|(num,_tp)|parts.push(format!("SPATIAL INDEX(v{num}),")));
+
+        let number_of_text_fields = self.tp1
+            .iter()
+            .chain(self.tp2.iter())
+            .filter(|tp|**tp==TypePart::Text)
+            .count();
+
+        // Create separate key and value indices for faster lookup, but burns disk
         if true {
             if !index_k.is_empty() {
                 parts.push(format!("INDEX `index_k` ({}),",index_k.join(",")));
@@ -77,11 +87,20 @@ impl DatabaseTable {
                 parts.push(format!("`id` INT(11) NOT NULL AUTO_INCREMENT,"));
                 parts.push(format!("PRIMARY KEY (`id`)"));
             } else {
-                parts.push(format!("PRIMARY KEY `primary_key` ({})",unique_index.join(",")));
+                if number_of_text_fields<2 {
+                    parts.push(format!("PRIMARY KEY `primary_key` ({})",unique_index.join(",")));
+                } else {
+                    parts.push(format!("`id` INT(11) NOT NULL AUTO_INCREMENT,"));
+                    parts.push(format!("PRIMARY KEY (`id`)"));
+                    println!("ATTENTION: Table {} has {number_of_text_fields} long text fields, and therefore no UNIQUE index!", self.name);
+                    // TODO unique key for this? Like:
+                    // UNIQUE INDEX `index_all` (`k0`,`k1`(100),`v0`(100),`v1`),
+                }
             }
         }
 
-        parts.push(format!(") ENGINE=Aria")); // InnoDB
+        parts.push(format!(") ENGINE=Aria"));
+        // println!("{}",parts.join(" "));
         parts.join("\n")
     }
 }

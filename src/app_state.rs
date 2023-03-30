@@ -70,13 +70,25 @@ impl AppState {
     }
 
     pub async fn init_from_db(&self) -> Result<(),WDSQErr> {
+        let mut conn = self.db_conn().await?;
+
+        // texts
+        let sql = r#"CREATE TABLE IF NOT EXISTS `texts` (
+            `id` INT(11) NOT NULL AUTO_INCREMENT,
+            `value` VARCHAR(255) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL,
+            PRIMARY KEY (`id`),
+            UNIQUE KEY `value` (`value`)
+        ) ENGINE=InnoDB"# ;
+        conn.exec_drop(sql, ()).await?;
+
+
+        // table_list
         let sql = r#"CREATE TABLE IF NOT EXISTS `table_list` (
             `id` INT(11) NOT NULL AUTO_INCREMENT,
             `name` VARCHAR(255) NOT NULL,
             `json` MEDIUMTEXT NOT NULL,
             PRIMARY KEY (`id`)
         ) ENGINE=InnoDB"# ;
-        let mut conn = self.db_conn().await?;
         conn.exec_drop(sql, ()).await?;
 
         let sql = r#"SELECT `name`,`json` FROM `table_list`"# ;
@@ -85,15 +97,10 @@ impl AppState {
             .map_and_drop(|row| mysql_async::from_row::<(String,String)>(row)).await?;
         let mut tables = self.tables.write().await;
         for (name,json) in results {
-            match serde_json::from_str(&json) {
-                Ok(json) => {
-                    let table: DatabaseTable = json;
-                    tables.insert(name,table);
-                },
-                Err(_) => todo!(),
-            }
+            let table: DatabaseTable = serde_json::from_str(&json)?;
+            tables.insert(name,table);
         }
-    Ok(())
+        Ok(())
     }
 
     pub async fn table(&self, s: Element, p: Element, o: Element) -> Result<DatabaseTable,WDSQErr> {
