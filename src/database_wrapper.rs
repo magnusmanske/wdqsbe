@@ -22,9 +22,18 @@ impl DatabaseWrapper {
         let table = self.app.table(s.clone(),p,o.clone()).await?;
         let mut values = s.values();
         values.append(&mut o.values());
+
+        if let Some(cache) = self.insert_cache.read().await.get(&table.name) {
+            cache.add(&s, &o, &table, values, &self.app).await?;
+            return Ok(())
+        }
+
+        // Add new
         self.insert_cache.write().await
             .entry(table.name.to_owned())
-            .or_insert(DbOperationCache::new())
+            .or_insert(DbOperationCache::new());
+
+        self.insert_cache.read().await.get(&table.name).unwrap()
             .add(&s, &o, &table, values, &self.app)
             .await?;
         Ok(())
@@ -33,13 +42,12 @@ impl DatabaseWrapper {
     pub async fn flush_insert_caches(&self) -> Result<(),WDSQErr> {
         let mut insert_cache = self.insert_cache.write().await;
         let tasks: Vec<_> = insert_cache
-            .iter_mut()
+            .iter()
             .map(|(_table_name,cache)|{
-                let mut cache_clone = cache.clone();
-                cache.clear();
+                let cache = cache.clone();
                 let app = self.app.clone();
                 tokio::spawn(async move {
-                    cache_clone.force_flush(&app).await
+                    cache.force_flush(&app).await
                 })
             })
             .collect();
