@@ -5,8 +5,6 @@ use crate::{element::Element, app_state::AppState, error::WDSQErr, database_wrap
 use bzip2::read::MultiBzDecoder;
 use flate2::read::GzDecoder;
 
-const TASKS_IN_PARALLEL: usize = 100; // TODO optimize this number
-
 #[derive(Clone, Debug)]
 pub struct Parser {
 }
@@ -50,7 +48,7 @@ impl Parser {
                 "http://www.w3.org/2001/XMLSchema#double" => return Some(Element::Float(s.parse::<f64>().ok()?)), // For now, same as decimal
                 "http://www.w3.org/2001/XMLSchema#integer" => return Some(Element::Int(s.parse::<i64>().ok()?)),
                 other => {
-                    println!("Unknown var_type {other}: {s}");
+                    println!("element_from_type: Unknown type '{other}' for '{s}'");
                     return Some(Element::Url(s.into()));
                 }
             }
@@ -64,7 +62,7 @@ impl Parser {
                 let element = match element_from_type(s, type_s) {
                     Some(element) => element,
                     None => {
-                        println!("type parsing has failed: {input}/{type_s}");
+                        println!("element_string: type parsing has failed: '{input}' / '{type_s}'");
                         Element::Text(s.into())
                     }
                 };
@@ -89,7 +87,7 @@ impl Parser {
         let (_,part3) = element(input)?;
 
         if let Element::Url(url) = &part2 {
-            println!("Property is URL {url:?}");
+            println!("parse_line: Property is URL, but should not be: {url:?}");
         }
         // println!("{line}\n{part1:?}\n{part2:?}\n{part3:?}\n");
         wrapper.add(part1,part2,part3).await?;
@@ -128,7 +126,7 @@ impl Parser {
         while let Some(line) = lines_iter.next() {
             let line = line.unwrap();
             lines.push(line);
-            if lines.len()>TASKS_IN_PARALLEL {
+            if lines.len()>app.parallel_parsing {
                 self.process_lines(&lines, &wrapper).await?;
                 lines.clear();
             }

@@ -9,6 +9,8 @@ use crate::{error::*, element::Element, database_table::DatabaseTable};
 pub struct AppState {
     db_pool: mysql_async::Pool,
     pub tables: Arc<RwLock<HashMap<String,DatabaseTable>>>,
+    pub parallel_parsing: usize,
+    pub insert_batch_size: usize,
     prefixes: HashMap<String,String>,
 }
 
@@ -33,6 +35,8 @@ impl AppState {
         let ret = Self {
             db_pool: Self::create_pool(&config["tool_db"]),
             tables: Arc::new(RwLock::new(HashMap::new())),
+            parallel_parsing: config["parallel_parsing"].as_u64().unwrap_or(100) as usize,
+            insert_batch_size: config["insert_batch_size"].as_u64().unwrap_or(100) as usize,
             prefixes,
         };
         ret

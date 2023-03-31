@@ -3,8 +3,6 @@ use serde::{Serialize, Deserialize};
 use mysql_async::{prelude::*, Conn};
 use crate::{error::*, element::Element, database_table::DatabaseTable, app_state::AppState};
 
-const INSERT_BATCH_SIZE: usize = 100;
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DbOperationCacheValue {
     Quoted(String), // Some ID string
@@ -124,7 +122,7 @@ impl DbOperationCache {
             return Err(format!("DbOperationCache::add: [2] Expected {} fields, got {}",values.len(),fields.len()).into());
         }
         self.command = format!("INSERT IGNORE INTO `{}` (`{}`) VALUES ",&table.name,fields.join("`,`"));
-        if self.values.len()>=INSERT_BATCH_SIZE {
+        if self.values.len()>=app.insert_batch_size {
             self.force_flush(app).await?;
         }
         Ok(())

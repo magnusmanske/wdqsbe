@@ -1,4 +1,6 @@
 {
+    "parallel_parsing": 100,
+    "insert_batch_size": 100,
     "tool_db":{
         "url":"mysql://USER:PASSWORD@SERVER:PORT/SCHEMA",
         "min_connections":0,
