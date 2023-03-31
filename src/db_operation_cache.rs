@@ -159,7 +159,6 @@ impl DbOperationCache {
         }
 
         let mut futures = vec![];
-        // let mut conn = app.db_conn().await?;
         self.prepare_text(&mut app.db_conn().await?).await?;
         for value_chunk in self.values.chunks(app.insert_chunk_size) {
             let question_marks: Vec<_> = value_chunk
@@ -179,8 +178,6 @@ impl DbOperationCache {
                 .flatten()
                 .collect();
             let sql = format!("{} {question_marks}",self.command);
-
-            // conn.exec_drop(sql, &values).await?;
             let app = app.clone();
             let future = tokio::spawn(async move {
                 app.db_conn().await?.exec_drop(sql, &values).await.map_err(|e|WDSQErr::MySQL(Arc::new(e)))
