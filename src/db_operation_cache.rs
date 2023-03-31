@@ -1,7 +1,8 @@
 use std::sync::Arc;
+use futures::future::join_all;
 use serde::{Serialize, Deserialize};
 use mysql_async::{prelude::*, Conn};
-use crate::{error::*, element::Element, database_table::DatabaseTable, app_state::AppState};
+use crate::{error::*, element::Element, database_table::DatabaseTable, app_state::AppState, database_wrapper::DatabaseWrapper};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DbOperationCacheValue {
@@ -157,9 +158,10 @@ impl DbOperationCache {
             return Ok(());
         }
 
-        let mut conn = app.db_conn().await?;
-        self.prepare_text(&mut conn).await?;
-        for value_chunk in self.values.chunks(1000) {
+        let mut futures = vec![];
+        // let mut conn = app.db_conn().await?;
+        self.prepare_text(&mut app.db_conn().await?).await?;
+        for value_chunk in self.values.chunks(app.insert_chunk_size) {
             let question_marks: Vec<_> = value_chunk
                 .iter()
                 .map(|parts|{
@@ -177,9 +179,15 @@ impl DbOperationCache {
                 .flatten()
                 .collect();
             let sql = format!("{} {question_marks}",self.command);
-            conn.exec_drop(sql, &values).await?;
 
+            // conn.exec_drop(sql, &values).await?;
+            let app = app.clone();
+            let future = tokio::spawn(async move {
+                app.db_conn().await?.exec_drop(sql, &values).await.map_err(|e|WDSQErr::MySQL(Arc::new(e)))
+            });
+            futures.push(future);
         }
+        DatabaseWrapper::first_err(join_all(futures).await, true)?;
         self.values.clear();
         Ok(())
     }

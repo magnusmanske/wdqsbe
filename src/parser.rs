@@ -107,7 +107,7 @@ impl Parser {
                 tokio::spawn(async { Self::parse_line(line, wrapper).await })
             })
             .collect();
-        wrapper.first_err(join_all(tasks).await, false)?;
+        DatabaseWrapper::first_err(join_all(tasks).await, false)?;
         Ok(())
     }
 

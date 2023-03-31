@@ -11,6 +11,7 @@ pub struct AppState {
     pub tables: Arc<RwLock<HashMap<String,DatabaseTable>>>,
     pub parallel_parsing: usize,
     pub insert_batch_size: usize,
+    pub insert_chunk_size: usize,
     prefixes: HashMap<String,String>,
 }
 
@@ -37,6 +38,7 @@ impl AppState {
             tables: Arc::new(RwLock::new(HashMap::new())),
             parallel_parsing: config["parallel_parsing"].as_u64().unwrap_or(100) as usize,
             insert_batch_size: config["insert_batch_size"].as_u64().unwrap_or(100) as usize,
+            insert_chunk_size: config["insert_chunk_size"].as_u64().unwrap_or(100) as usize,
             prefixes,
         };
         ret
