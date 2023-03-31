@@ -1,109 +1,99 @@
-use std::{io::{self, BufRead, Lines}, fs::File, collections::VecDeque, sync::Arc};
+use std::{io::{self, BufRead, Lines}, fs::File, sync::Arc};
 use futures::future::join_all;
+use nom::{IResult, bytes::complete::{tag, take_until, take_until1}, branch::alt, character::complete::space1, error::Error};
 use crate::{element::Element, app_state::AppState, error::WDSQErr, database_wrapper::DatabaseWrapper, lat_lon::LatLon, element_type::ElementType, date_time::DateTime};
 use bzip2::read::MultiBzDecoder;
 use flate2::read::GzDecoder;
 
-const TASKS_IN_PARALLEL: usize = 100;
+const TASKS_IN_PARALLEL: usize = 100; // TODO optimize this number
 
 #[derive(Clone, Debug)]
 pub struct Parser {
 }
 
 impl Parser {
-    fn skip_whitespace(chars: &mut VecDeque<char>) {
-        while chars.front()==Some(&' ') {
-            let _ = chars.pop_front();
-        }
-    }
-
-    // TODO FIXME this is bad, slow, no backslash-escape etc
-    fn read_part(chars: &mut VecDeque<char>) -> Option<Element> {
-        let mut ret = String::new();
-        let first = chars.front()?;
-        if *first=='<' {
-            let _ = chars.pop_front()?;
-            let mut complete = false;
-            while let Some(c) = chars.pop_front() {
-                if c=='>' {
-                    complete = true;
-                    break;
-                }
-                ret.push(c);
-            }
-            if !complete { // Didn't end with '>'
-                return None;
-            }
-            Element::from_str(ret)
-        } else if *first=='_' {
-            while chars.front().is_some() && chars.front()!=Some(&' ') {
-                let c = chars.pop_front().unwrap();
-                ret.push(c);
-            }
-            Some(Element::Text(ret.into()))
-        } else if *first=='"' {
-            let _ = chars.pop_front()?;
-            let mut complete = false;
-            while let Some(c) = chars.pop_front() {
-                if c=='"' {
-                    complete = true;
-                    break;
-                }
-                ret.push(c);
-            }
-            if !complete { // Didn't end with '>'
-                return None;
-            }
-            if chars.front()==Some(&'^') {
-                while chars.front()==Some(&'^') {
-                    chars.pop_front();
-                }
-                chars.pop_front(); // <
-                let mut var_type = String::new();
-                while chars.front().is_some() && chars.front()!=Some(&'>') {
-                    let c = chars.pop_front().unwrap();
-                    var_type.push(c);
-                }
-                chars.pop_front(); // >
-                match var_type.as_str() {
-                    "http://www.w3.org/2001/XMLSchema#dateTime" => return Some(Element::DateTime(*DateTime::from_str(&ret)?)),
-                    "http://www.opengis.net/ont/geosparql#wktLiteral" => return Some(Element::LatLon(*LatLon::from_str(&ret)?)),
-                    "http://www.w3.org/2001/XMLSchema#decimal" => return Some(Element::Float(ret.parse::<f64>().ok()?)),
-                    "http://www.w3.org/2001/XMLSchema#double" => return Some(Element::Float(ret.parse::<f64>().ok()?)), // For now, same as decimal
-                    "http://www.w3.org/2001/XMLSchema#integer" => return Some(Element::Int(ret.parse::<i64>().ok()?)),
-                    other => {
-                        println!("Unknown var_type {other}: {ret}");
-                        return Some(Element::Url(ret.into()));
-                    }
-                }
-            }
-            let mut language = String::new();
-            if chars.front()!=Some(&'@') {
-                return Some(Element::Text(ret.into()));
-            }
-            let _ = chars.pop_front()?; // @
-            while chars.front().is_some() && chars.front()!=Some(&' ') {
-                let c = chars.pop_front().unwrap();
-                language.push(c);
-            }
-            Some(Element::TextInLanguage((ret.into(),language.into())))
-        } else {
-            None
-        }
-    }
-
     async fn parse_line(line: String, wrapper: Arc<DatabaseWrapper>) -> Result<(),WDSQErr> {
-        let mut chars = line.chars().collect();
-        let part1 = Self::read_part(&mut chars).ok_or_else(||WDSQErr::ParserError(line.to_owned()))?;
-        Self::skip_whitespace(&mut chars);
-        let part2 = Self::read_part(&mut chars).ok_or_else(||WDSQErr::ParserError(line.to_owned()))?;
-        Self::skip_whitespace(&mut chars);
-        let part3 = Self::read_part(&mut chars).ok_or_else(||WDSQErr::ParserError(line.to_owned()))?;
-        match &part2 {
-            Element::Url(url) => println!("Property is URL {url:?}"),
-            _ => {}
+        fn element_url(input: &str) -> IResult<&str, Element> {
+            let (input, _) = tag("<")(input)?;
+            let (input, s) = take_until1(">")(input)?;
+            let (input, _) = tag(">")(input)?;
+            let element = Element::from_str(s).unwrap();
+            Ok((input, element))
         }
+
+        fn element_underscore(input: &str) -> IResult<&str, Element> {
+            let (input, _) = tag("_")(input)?;
+            let (input, s) = take_until(" ")(input)?;
+            let element = Element::Text(s.into());
+            Ok((input, element))
+        }
+
+        fn string_type(input: &str) -> IResult<&str, &str> {
+            let (input, _) = tag("^^")(input)?;
+            let (input, _) = tag("<")(input)?;
+            let (input, s) = take_until1(">")(input)?;
+            let (input, _) = tag(">")(input)?;
+            Ok((input, s))
+        }
+
+        fn string_language(input: &str) -> IResult<&str, &str> {
+            let (input, _) = tag("@")(input)?;
+            let (input, s) = take_until1(" ")(input)?;
+            Ok((input, s))
+        }
+
+        fn element_from_type(s: &str, type_s: &str) -> Option<Element> {
+            match type_s {
+                "http://www.w3.org/2001/XMLSchema#dateTime" => return Some(Element::DateTime(*DateTime::from_str(&s)?)),
+                "http://www.opengis.net/ont/geosparql#wktLiteral" => return Some(Element::LatLon(*LatLon::from_str(&s)?)),
+                "http://www.w3.org/2001/XMLSchema#decimal" => return Some(Element::Float(s.parse::<f64>().ok()?)),
+                "http://www.w3.org/2001/XMLSchema#double" => return Some(Element::Float(s.parse::<f64>().ok()?)), // For now, same as decimal
+                "http://www.w3.org/2001/XMLSchema#integer" => return Some(Element::Int(s.parse::<i64>().ok()?)),
+                other => {
+                    println!("Unknown var_type {other}: {s}");
+                    return Some(Element::Url(s.into()));
+                }
+            }
+        }
+
+        fn element_string(input: &str) -> IResult<&str, Element> {
+            let (input, _) = tag("\"")(input)?;
+            let (input, s) = take_until("\"")(input)?;
+            let (input, _) = tag("\"")(input)?;
+            if let Ok((input, type_s)) = string_type(input) {
+                let element = match element_from_type(s, type_s) {
+                    Some(element) => element,
+                    None => {
+                        println!("type parsing has failed: {input}/{type_s}");
+                        Element::Text(s.into())
+                    }
+                };
+                return Ok((input, element));
+            }
+            if let Ok((input, language_s)) = string_language(input) {
+                let element = Element::TextInLanguage((s.into(),language_s.into()));
+                return Ok((input, element));
+            }
+            Ok((input, Element::Text(s.into())))
+        }
+
+        fn element(input: &str) -> IResult<&str, Element> {
+            alt((element_url,element_underscore,element_string))(input)
+        }
+
+        let input: &str = &line;
+        let (input,part1) = element(input)?;
+        let (input,_) = space1::<_, Error<_>>(input)?;
+        let (input,part2) = element(input)?;
+        let (input,_) = space1::<_, Error<_>>(input)?;
+        let (_,part3) = element(input)?;
+
+        if let Element::Url(url) = &part2 {
+            println!("Property is URL {url:?}");
+        }
+        // println!("{line}\n{part1:?}\n{part2:?}\n{part3:?}\n");
         wrapper.add(part1,part2,part3).await?;
+
         Ok(())
     }
 

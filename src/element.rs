@@ -47,6 +47,7 @@ pub enum Element {
     Url(TextId),
     WikibaseOntology(String),
     SchemaOrg(String),
+    W3Owl(String),
 
     RdfSchemaLabel,
     WasDerivedFrom,
@@ -56,13 +57,11 @@ pub enum Element {
     W3SkosCorePrefLabel,
     W3OntolexLexicalForm,
     W3OntolexRepresentation,
-    W3OwlImports,
-    W3OwlSameAs,
     CreativeCommonsLicense,
 }
 
 impl Element {
-    pub fn from_str(element: String) -> Option<Self> {
+    pub fn from_str(element: &str) -> Option<Self> {
         if let Some(caps) = RE_WIKI_URL.captures(&element) {
             let server = caps.get(1).map_or("", |m| m.as_str()).to_string();
             let page = caps.get(2).map_or("", |m| m.as_str()).to_string();
@@ -125,10 +124,14 @@ impl Element {
                 }
             }
             "http://www.w3.org/2002/07" => {
-                match key.as_str() {
-                    "owl#imports" => Some(Element::W3OwlImports),
-                    "owl#sameAs" => Some(Element::W3OwlSameAs),
-                    _ => Some(Element::Url(element.into())),
+                match key.split_once('#') {
+                    Some((k1,k2)) => {
+                        match k1 {
+                            "owl" => Some(Element::W3Owl(k2.into())),
+                            _ => Some(Element::Url(element.into())),
+                        }
+                    },
+                    None => Some(Element::Url(element.into())),
                 }
             }
             "http://www.w3.org/ns/lemon" => {
@@ -176,6 +179,7 @@ impl Element {
             Element::Int(_) => "Integer",
             Element::Float(_) => "Decimal",
             Element::Url(_) => "Url",
+            Element::W3Owl(_) => "W3Owl",
             Element::WikibaseOntology(_) => "WikibaseOntology",
             Element::SchemaOrg(_) => "SchemaOrg",
             Element::RdfSchemaLabel => "RdfSchemaLabel",
@@ -186,8 +190,6 @@ impl Element {
             Element::W3OntolexLexicalForm => "W3OntolexLexicalForm",
             Element::W3OntolexRepresentation => "W3OntolexRepresentation",
             Element::W3SkosCorePrefLabel => "W3SkosCorePrefLabel",
-            Element::W3OwlImports => "W3OwlImports",
-            Element::W3OwlSameAs => "W3OwlSameAs",
             Element::CreativeCommonsLicense => "CreativeCommonsLicense",
         }
     }
@@ -272,6 +274,7 @@ impl Element {
             Element::Float(_) => self.name().to_string(),
             Element::WikibaseOntology(s) => format!("WO{s}"),
             Element::SchemaOrg(s) => format!("SchemaOrg{s}"),
+            Element::W3Owl(s) => format!("W3Owl_{s}"),
             Element::RdfSchemaLabel => self.name().to_string(),
             Element::WasDerivedFrom => self.name().to_string(),
             Element::PurlLanguage => self.name().to_string(),
@@ -280,8 +283,6 @@ impl Element {
             Element::W3OntolexLexicalForm => self.name().to_string(),
             Element::W3OntolexRepresentation => self.name().to_string(),
             Element::W3SkosCorePrefLabel => self.name().to_string(),
-            Element::W3OwlImports => self.name().to_string(),
-            Element::W3OwlSameAs => self.name().to_string(),
             Element::CreativeCommonsLicense => self.name().to_string(),
         }
     }
@@ -314,6 +315,7 @@ impl Element {
             Element::Url(_) => vec![TypePart::Int],
             Element::WikibaseOntology(_) => vec![TypePart::ShortText],
             Element::SchemaOrg(_) => vec![TypePart::ShortText],
+            Element::W3Owl(_) => vec![TypePart::ShortText],
             Element::RdfSchemaLabel => vec![TypePart::Blank],
             Element::WasDerivedFrom => vec![TypePart::Blank],
             Element::PurlLanguage => vec![TypePart::Blank],
@@ -322,8 +324,6 @@ impl Element {
             Element::W3OntolexLexicalForm => vec![TypePart::Blank],
             Element::W3OntolexRepresentation => vec![TypePart::Blank],
             Element::W3SkosCorePrefLabel => vec![TypePart::Blank],
-            Element::W3OwlImports => vec![TypePart::Blank],
-            Element::W3OwlSameAs => vec![TypePart::Blank],
             Element::CreativeCommonsLicense => vec![TypePart::Blank],
         }
     }
@@ -371,6 +371,7 @@ impl Element {
             Element::Float(s) => vec![DbOperationCacheValue::Expression(format!("{s}"))],
             Element::WikibaseOntology(s) => vec![s.into()],
             Element::SchemaOrg(s) => vec![s.into()],
+            Element::W3Owl(s) => vec![s.into()],
             Element::RdfSchemaLabel => vec![],
             Element::WasDerivedFrom => vec![],
             Element::PurlLanguage => vec![],
@@ -379,8 +380,6 @@ impl Element {
             Element::W3OntolexLexicalForm => vec![],
             Element::W3OntolexRepresentation => vec![],
             Element::W3SkosCorePrefLabel => vec![],
-            Element::W3OwlImports => vec![],
-            Element::W3OwlSameAs => vec![],
             Element::CreativeCommonsLicense => vec![],
         }
     }

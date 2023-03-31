@@ -9,6 +9,7 @@ pub enum WDSQErr {
     ParseInt(ParseIntError),
     FromUtf8(FromUtf8Error),
     ParserError(String),
+    NomError(String),
 }
 
 impl std::error::Error for WDSQErr {}
@@ -23,6 +24,7 @@ impl std::fmt::Display for WDSQErr {
             WDSQErr::ParseInt(e) => f.write_str(&e.to_string()),
             WDSQErr::FromUtf8(e) => f.write_str(&e.to_string()),
             WDSQErr::ParserError(e) => f.write_str(&e.to_string()),
+            WDSQErr::NomError(e) => f.write_str(&e.to_string()),
         }
     }
 }
@@ -53,4 +55,8 @@ impl From<ParseIntError> for WDSQErr {
 
 impl From<FromUtf8Error> for WDSQErr {  
     fn from(e: FromUtf8Error) -> Self {Self::FromUtf8(e)}
+}
+
+impl From<nom::Err<nom::error::Error<&str>>> for WDSQErr {  
+    fn from(e: nom::Err<nom::error::Error<&str>>) -> Self {Self::String(e.to_string())}
 }

@@ -1,29 +1,53 @@
-use regex::Regex;
-
 use crate::{element_type::ElementType, type_part::TypePart, db_operation_cache::DbOperationCacheValue};
-
-lazy_static! {
-    static ref RE_POINT: Regex = Regex::new(r#"^Point\(([+-]?[0-9.]+)\s+([+-]?[0-9.]+)\)$"#).expect("RE_POINT does not parse");
-}
 
 #[derive(Clone, Debug)]
 pub struct TextId {
     s: String,
 }
 
-impl From<String> for TextId {
-    fn from(s: String) -> Self {
+impl TextId {
+    fn from_str_lossy(s: &str) -> Self {
+        // Percent-decode if required
+        let s = if s.contains('%') {
+            percent_encoding::percent_decode(s.as_bytes()).decode_utf8_lossy().to_string()
+        } else {
+            s.to_string()
+        };
+
+        // Unicode backslash decode, eg "\u6BD4\u5229\u65F6"@zh
+        // DOES NOT WORK TOTO FIXME
+        // let s = if s.contains("\\u") {
+        //     match serde_json::from_str(&s) {
+        //         Ok(decoded) => decoded,
+        //         Err(_) => s,
+        //     }
+        // } else {
+        //     s
+        // };
         Self{s}
     }
 }
+
+impl From<String> for TextId {
+    fn from(s: String) -> Self {
+        Self::from_str_lossy(&s)
+    }
+}
+
+impl From<&str> for TextId {
+    fn from(s: &str) -> Self {
+        Self::from_str_lossy(&s)
+    }
+}
+
 impl ElementType for TextId {
     fn from_str(s: &str) -> Option<Box<Self>> {
-        Some(Box::new(Self { s: s.to_string() }))
+        Some(Box::new(Self::from_str_lossy(s)))
     }
 
     fn from_sql_values(name:&str, _value: &Vec<String>) -> Option<Box<Self>> {
         match name {
-            // "TextId" => TextId::from_str(&value[0].parse::<String>().unwrap()),
+            // "TextId" => TextId::from_str(&value[0].parse::<String>().unwrap()), // TODO CHECK
             _ => None,
         }
     }
@@ -33,8 +57,6 @@ impl ElementType for TextId {
     }
 
     fn values(&self) -> Vec<DbOperationCacheValue> {
-        //let safe_s = self.s.replace('"',""); // TODO FIXME
-        //format!("(SELECT `id` FROM `texts` WHERE `value`=\"{safe_s}\")")
         vec![DbOperationCacheValue::Text(self.s.to_owned())]
     }
 
