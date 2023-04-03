@@ -1,6 +1,6 @@
 use std::{io::{self, BufRead, Lines}, fs::File, sync::Arc};
 use futures::future::join_all;
-use nom::{IResult, bytes::complete::{tag, take_until, take_until1}, branch::alt, character::complete::space1, error::Error};
+use nom::{IResult, bytes::complete::{tag, take_until, take_until1}, branch::alt, character::complete::space1};
 use crate::{element::Element, app_state::AppState, error::WDSQErr, database_wrapper::DatabaseWrapper, lat_lon::LatLon, element_type::ElementType, date_time::DateTime};
 use bzip2::read::MultiBzDecoder;
 use flate2::read::GzDecoder;
@@ -81,18 +81,16 @@ impl Parser {
 
         let input: &str = &line;
         let (input,part1) = element(input)?;
-        let (input,_) = space1::<_, Error<_>>(input)?;
+        let (input,_) = space1(input)?;
         let (input,part2) = element(input)?;
-        let (input,_) = space1::<_, Error<_>>(input)?;
+        let (input,_) = space1(input)?;
         let (_,part3) = element(input)?;
 
         if let Element::Url(url) = &part2 {
             println!("parse_line: Property is URL, but should not be: {url:?}");
         }
         // println!("{line}\n{part1:?}\n{part2:?}\n{part3:?}\n");
-        wrapper.add(part1,part2,part3).await?;
-
-        Ok(())
+        wrapper.add(part1,part2,part3).await
     }
 
     async fn process_lines(&self, lines: &Vec<String>, wrapper: &Arc<DatabaseWrapper>) -> Result<(),WDSQErr> {
