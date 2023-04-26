@@ -73,7 +73,6 @@ struct QueryPartMeta {
 
 #[derive(Debug, Clone)]
 pub struct QueryTriples {
-    app: Arc<AppState>,
     s: QueryPart,
     p: QueryPart,
     o: QueryPart,
@@ -84,9 +83,8 @@ pub struct QueryTriples {
 }
 
 impl QueryTriples {
-    pub fn new(app: &Arc<AppState>, s:QueryPart, p:QueryPart, o:QueryPart ) -> Self {
+    pub fn new(s:QueryPart, p:QueryPart, o:QueryPart ) -> Self {
         Self {
-            app: app.clone(),
             s,
             p,
             o,
@@ -102,7 +100,6 @@ impl QueryTriples {
         let (p,p_meta) = Self::meta_part_from_string(p, &app)?;
         let (o,o_meta) = Self::meta_part_from_string(o, &app)?;
         let mut ret = Self {
-            app: app.clone(), 
             s, 
             p, 
             o, 
@@ -111,7 +108,7 @@ impl QueryTriples {
             o_meta,
             result: HashMap::new(),
         };
-        ret.process().await?;
+        ret.process(app).await?;
         Ok(ret)
     }
 
@@ -151,8 +148,8 @@ impl QueryTriples {
         self.table_matches_part(&self.o, &table.names().2)
     }
 
-    async fn filter_tables(&self) -> Vec<String> {
-        self.app.tables.read().await
+    async fn filter_tables(&self, app: &AppState) -> Vec<String> {
+        app.tables.read().await
             .iter()
             .filter(|(_,table)|self.table_matches_property(table))
             .filter(|(_,table)|self.table_matches_subject(table))
@@ -161,10 +158,10 @@ impl QueryTriples {
             .collect()
     }
 
-    async fn group_tables(&self, tables: Vec<String>) -> HashMap<String,Vec<String>> {
+    async fn group_tables(&self, tables: Vec<String>, app: &AppState) -> HashMap<String,Vec<String>> {
         let mut ret = HashMap::new() ;
         for table_name in tables {
-            if let Some(table) = self.app.tables.read().await.get(&table_name) {
+            if let Some(table) = app.tables.read().await.get(&table_name) {
                 let names = table.names();
                 let key = format!("{}__{}__{}",names.0,names.1,names.2);
                 ret.entry(key).or_insert(vec![]).push(table_name);
@@ -205,7 +202,7 @@ impl QueryTriples {
     }
 
     // These tables must have the same columns, and the columns must have the the same meaning.
-    async fn process_similar_tables(&self, table_names: &Vec<String>) -> Result<Option<SqlPart>,WDSQErr> {
+    async fn process_similar_tables(&self, table_names: &Vec<String>, app: &AppState) -> Result<Option<SqlPart>,WDSQErr> {
         let mut ret = vec![] ;
         for table_name in table_names {
             match self.sql_for_table(table_name).await? {
@@ -216,7 +213,7 @@ impl QueryTriples {
         for part in ret.iter_mut() {
             match &part.table {
                 Some(table_name) => {
-                    let (params,variables) = self.get_sql_return_params(&table_name).await?;
+                    let (params,variables) = self.get_sql_return_params(&table_name,app).await?;
                     if params.is_empty() {
                         return Err("QueryTriples::process_similar_tables: Parameter list if empty".into());
                     }
@@ -236,10 +233,10 @@ impl QueryTriples {
         Ok(ret.pop())
     }
 
-    async fn get_sql_return_params(&self, table_name: &str) -> Result<(Vec<String>,Vec<SqlVariable>),WDSQErr> {
+    async fn get_sql_return_params(&self, table_name: &str, app: &AppState) -> Result<(Vec<String>,Vec<SqlVariable>),WDSQErr> {
         let mut params = vec![];
         let mut ret_variables = vec![];
-        let tables = self.app.tables.read().await;
+        let tables = app.tables.read().await;
         let table = tables.get(table_name).ok_or_else(|| WDSQErr::String(format!("get_sql_return_params: Missing table '{table_name}'")))?;
         let names = table.names().to_owned();
 
@@ -289,10 +286,10 @@ impl QueryTriples {
         Ok((params,ret_variables))
     }
 
-    async fn process_grouped_tables(&self, grouped_tables: HashMap<String,Vec<String>>) -> Result<HashMap<String,SqlPart>,WDSQErr> {
+    async fn process_grouped_tables(&self, grouped_tables: HashMap<String,Vec<String>>, app: &AppState) -> Result<HashMap<String,SqlPart>,WDSQErr> {
         let mut ret = HashMap::new();
         for (group_key,table_names) in grouped_tables {
-            match self.process_similar_tables(&table_names).await? {
+            match self.process_similar_tables(&table_names, app).await? {
                 Some(result) => {
                     ret.insert(group_key,result);
                 }
@@ -302,10 +299,10 @@ impl QueryTriples {
         Ok(ret) // TODO FIXME
     }
 
-    pub async fn process(&mut self) -> Result<(),WDSQErr> {
-        let result = self.filter_tables().await;
-        let result = self.group_tables(result).await;
-        let result = self.process_grouped_tables(result).await?;
+    pub async fn process(&mut self, app: &AppState) -> Result<(),WDSQErr> {
+        let result = self.filter_tables(app).await;
+        let result = self.group_tables(result, app).await;
+        let result = self.process_grouped_tables(result, app).await?;
         self.result = result;
         Ok(())
     }
@@ -338,7 +335,7 @@ impl QueryTriples {
         Ok(())
     }
 
-    pub async fn run(&self) -> Result<HashMap<String,DatabaseQueryResult>,WDSQErr> {
-        self.app.run_query(&self).await
+    pub async fn run(&self, app: &AppState) -> Result<HashMap<String,DatabaseQueryResult>,WDSQErr> {
+        app.run_query(&self).await
     }
 }

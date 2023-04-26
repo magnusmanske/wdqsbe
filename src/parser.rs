@@ -90,7 +90,7 @@ impl Parser {
             println!("parse_line: Property is URL, but should not be: {url:?}");
         }
         // println!("{line}\n{part1:?}\n{part2:?}\n{part3:?}\n");
-        wrapper.add(part1,part2,part3).await
+        wrapper.add(part1,&part2,part3).await
     }
 
     async fn process_lines(&self, lines: &Vec<String>, wrapper: &Arc<DatabaseWrapper>) -> Result<(),WDSQErr> {

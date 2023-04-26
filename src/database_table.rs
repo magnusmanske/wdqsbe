@@ -12,7 +12,7 @@ pub struct DatabaseTable {
 }
 
 impl DatabaseTable {
-    pub fn new(s: Element, p: Element, o: Element) -> Self {
+    pub fn new(s: &Element, p: &Element, o: &Element) -> Self {
         let subject_label = s.get_table_name();
         let prop_label = p.get_table_name();
         let object_label = o.get_table_name();

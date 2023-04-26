@@ -25,6 +25,8 @@ pub mod app_state;
 pub mod query_part;
 pub mod query_triples;
 pub mod error;
+pub mod app_state_mysql_live;
+pub mod app_state_mysql_stdout;
 
 
 use clap::{Arg, Command};
@@ -53,7 +55,7 @@ async fn main() -> Result<(), WDSQErr> {
         let qt2 = QueryTriples::from_str(&app,"?person","wdt:P21","wd:Q6581072").await?;
         qt1.and(&qt2)?;
         println!("{:?}",&qt1.result);
-        let result = qt1.run().await?;
+        let result = qt1.run(&app).await?;
         println!("{:?}",result);
     }
     Ok(())

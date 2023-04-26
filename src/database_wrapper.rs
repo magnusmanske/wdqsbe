@@ -18,8 +18,8 @@ impl DatabaseWrapper {
         }
     }
 
-    pub async fn add(&self, s: Element, p: Element, o: Element) -> Result<(),WDSQErr> {
-        let table = self.app.table(s.clone(),p,o.clone()).await?;
+    pub async fn add(&self, s: Element, p: &Element, o: Element) -> Result<(),WDSQErr> {
+        let table = self.app.table(&s,p,&o).await?;
         let mut values = s.values();
         values.append(&mut o.values());
 
@@ -46,10 +46,7 @@ impl DatabaseWrapper {
             .map(|(_table_name,cache)|{
                 let cache = cache.clone();
                 let app = self.app.clone();
-                tokio::spawn(async move {
-                    let ret = cache.force_flush(&app).await;
-                    ret
-                })
+                tokio::spawn(async move { cache.force_flush(&app).await })
             })
             .collect();
         Self::first_err(join_all(tasks).await, true)?;

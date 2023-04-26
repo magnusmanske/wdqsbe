@@ -67,26 +67,28 @@ impl Element {
             let page = caps.get(2).map_or("", |m| m.as_str()).to_string();
             return Some(Element::WikiPage((server.into(),page.into())))
         }
-        let mut parts: Vec<_> = element.split("/").collect();
-        let key = parts.pop().unwrap().to_string();
-        let root = parts.join("/");
-        match root.as_str() {
-            "http://www.wikidata.org/entity" => Some(Element::Entity(*Entity::from_str(&key)?)),
-            "http://www.wikidata.org/entity/statement" => Some(Element::EntityStatement(*EntityStatement::from_str(&key)?)),
-            "http://www.wikidata.org/prop" => Some(Element::Property(*Entity::from_str(&key)?)),
-            "http://www.wikidata.org/prop/direct" => Some(Element::PropertyDirect(key)),
-            "http://www.wikidata.org/prop/direct-normalized" => Some(Element::PropertyDirectNormalized(key)),
-            "http://www.wikidata.org/prop/statement" => Some(Element::PropertyStatement(key)),
-            "http://www.wikidata.org/prop/statement/value" => Some(Element::PropertyStatementValue(key)),
-            "http://www.wikidata.org/prop/statement/value-normalized" => Some(Element::PropertyStatementValueNormalized(key)),
-            "http://www.wikidata.org/prop/reference" => Some(Element::PropertyReference(key)),
-            "http://www.wikidata.org/prop/reference/value" => Some(Element::PropertyReferenceValue(key)),
-            "http://www.wikidata.org/prop/reference/value-normalized" => Some(Element::PropertyReferenceValueNormalized(key)),
-            "http://www.wikidata.org/prop/qualifier" => Some(Element::PropertyQualifier(key)),
-            "http://www.wikidata.org/prop/qualifier/value" => Some(Element::PropertyQualifierValue(key)),
-            "http://www.wikidata.org/prop/qualifier/value-normalized" => Some(Element::PropertyQualifierValueNormalized(key)),
-            "http://www.wikidata.org/reference" => Some(Element::Reference(*UUID40::from_str(&key)?)),
-            "http://www.wikidata.org/value" => Some(Element::Value(key.into())),
+
+        let (root,key) = match element.rsplit_once('/') {
+            Some((root,key)) => (root,key),
+            None => ("",element),
+        };
+        match root {
+            "http://www.wikidata.org/entity" => Some(Element::Entity(*Entity::from_str(key)?)),
+            "http://www.wikidata.org/entity/statement" => Some(Element::EntityStatement(*EntityStatement::from_str(key)?)),
+            "http://www.wikidata.org/prop" => Some(Element::Property(*Entity::from_str(key)?)),
+            "http://www.wikidata.org/prop/direct" => Some(Element::PropertyDirect(key.to_string())),
+            "http://www.wikidata.org/prop/direct-normalized" => Some(Element::PropertyDirectNormalized(key.to_string())),
+            "http://www.wikidata.org/prop/statement" => Some(Element::PropertyStatement(key.to_string())),
+            "http://www.wikidata.org/prop/statement/value" => Some(Element::PropertyStatementValue(key.to_string())),
+            "http://www.wikidata.org/prop/statement/value-normalized" => Some(Element::PropertyStatementValueNormalized(key.to_string())),
+            "http://www.wikidata.org/prop/reference" => Some(Element::PropertyReference(key.to_string())),
+            "http://www.wikidata.org/prop/reference/value" => Some(Element::PropertyReferenceValue(key.to_string())),
+            "http://www.wikidata.org/prop/reference/value-normalized" => Some(Element::PropertyReferenceValueNormalized(key.to_string())),
+            "http://www.wikidata.org/prop/qualifier" => Some(Element::PropertyQualifier(key.to_string())),
+            "http://www.wikidata.org/prop/qualifier/value" => Some(Element::PropertyQualifierValue(key.to_string())),
+            "http://www.wikidata.org/prop/qualifier/value-normalized" => Some(Element::PropertyQualifierValueNormalized(key.to_string())),
+            "http://www.wikidata.org/reference" => Some(Element::Reference(*UUID40::from_str(key)?)),
+            "http://www.wikidata.org/value" => Some(Element::Value(key.to_string().into())),
             "http://wikiba.se" => {
                 match key.split_once('#') {
                     Some(("ontology",s)) => Some(Element::WikibaseOntology(s.to_string())),
@@ -94,31 +96,31 @@ impl Element {
                 }
             }
             "http://purl.org/dc/terms" => {
-                match key.as_str() {
+                match key {
                     "language" => Some(Element::PurlLanguage),
                     _ => Some(Element::Url(element.into())),
                 }
             }
             "http://www.w3.org/2000/01" => {
-                match key.as_str() {
+                match key {
                     "rdf-schema#label" => Some(Element::RdfSchemaLabel),
                     _ => Some(Element::Url(element.into())),
                 }
             }
             "http://creativecommons.org" => {
-                match key.as_str() {
+                match key {
                     "ns#license" => Some(Element::CreativeCommonsLicense),
                     _ => Some(Element::Url(element.into())),
                 }
             }
             "http://www.w3.org/ns" => {
-                match key.as_str() {
+                match key {
                     "prov#wasDerivedFrom" => Some(Element::WasDerivedFrom),
                     _ => Some(Element::Url(element.into())),
                 }
             }
             "http://www.w3.org/1999/02" => {
-                match key.as_str() {
+                match key {
                     "22-rdf-syntax-ns#type" => Some(Element::W3RdfSyntaxNsType),
                     _ => Some(Element::Url(element.into())),
                 }
@@ -135,20 +137,20 @@ impl Element {
                 }
             }
             "http://www.w3.org/ns/lemon" => {
-                match key.as_str() {
+                match key {
                     "ontolex#lexicalForm" => Some(Element::W3OntolexLexicalForm),
                     "ontolex#representation" => Some(Element::W3OntolexRepresentation),
                     _ => Some(Element::Url(element.into())),
                 }
             }
             "http://www.w3.org/2004/02/skos" => {
-                match key.as_str() {
+                match key {
                     "core#altLabel" => Some(Element::W3SkosCoreAltLabel),
                     "core#prefLabel" => Some(Element::W3SkosCorePrefLabel),
                     _ => Some(Element::Url(element.into())),
                 }
-        }
-            "http://schema.org" => Some(Element::SchemaOrg(key)),
+            }
+            "http://schema.org" => Some(Element::SchemaOrg(key.to_string())),
             _ => Some(Element::Url(element.into())),
         }
     }
