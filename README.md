@@ -6,6 +6,12 @@ Inserting and deleting triples is as fast as MySQL INSERT/DELETE.
 Querying is as fast as MySQL SELECT.
 Read-only MySQL replicas can be scaled to handle read traffic, as is already done for Wikipedia etc.
 
+# Convert triples to MySQL dump
+Converts a file (plain text or bzip2) into a msql dump that can be used to create the database representation.
+```
+wdqsbe --import TRIPLES.nt.bz2 --dbtype mysql_stdout | bzip2 > sql.bz2
+```
+
 # Speed test
 Reading the 108K triple test set from local file, writing to a database on Toolforge via fast internet.
 

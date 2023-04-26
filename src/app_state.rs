@@ -37,15 +37,6 @@ impl std::fmt::Debug for dyn AppDB {
     }
 }
 
-
-
-
-
-
-
-
-
-
 #[derive(Clone)]
 pub struct AppState {
     pub db_interface: Arc<Box<dyn AppDB + Sync + Send>>,
@@ -53,7 +44,6 @@ pub struct AppState {
     pub parallel_parsing: usize,
     pub insert_batch_size: usize,
     pub insert_chunk_size: usize,
-    pub to_stdout: bool,
     prefixes: HashMap<String,String>,
 }
 
@@ -71,11 +61,15 @@ impl fmt::Debug for AppState {
 impl AppState {
     /// Create an AppState object from a config JSON file
     pub fn from_config_file(filename: &str) -> Result<Self,WDSQErr> {
+        let config = Self::get_config_from_file(filename)?;
+        Ok(Self::from_config(&config))
+    }
+
+    pub fn get_config_from_file(filename: &str) -> Result<Value,WDSQErr> {
         let mut path = env::current_dir().expect("Can't get CWD");
         path.push(filename);
         let file = File::open(&path)?;
-        let config: Value = serde_json::from_reader(file)?;
-        Ok(Self::from_config(&config))
+        Ok(serde_json::from_reader(file)?)
     }
 
     /// Creatre an AppState object from a config JSON object
@@ -86,10 +80,11 @@ impl AppState {
             .iter()
             .map(|(k,v)|(k.to_owned(),v.as_str().unwrap().to_string()))
             .collect();
-        let db_interface: Box<dyn AppDB+Send+Sync> = if config["to_stdout"].as_bool().unwrap_or(false) as bool {
-            Box::new(AppStateStdoutMySQL::new(config))
-        } else {
-            Box::new(AppStateLiveMySQL::new(config))
+        let db_type = config["db_type"].as_str().unwrap_or("mysql") as &str;
+        let db_interface: Box<dyn AppDB+Send+Sync> = match db_type {
+            "mysql" => Box::new(AppStateLiveMySQL::new(config)),
+            "mysql_stdout" => Box::new(AppStateStdoutMySQL::new(config)),
+            _ => panic!("Unknown db_type {db_type}"),
         };
         let ret = Self {
             db_interface: Arc::new(db_interface),
@@ -97,7 +92,6 @@ impl AppState {
             parallel_parsing: config["parallel_parsing"].as_u64().unwrap_or(100) as usize,
             insert_batch_size: config["insert_batch_size"].as_u64().unwrap_or(100) as usize,
             insert_chunk_size: config["insert_chunk_size"].as_u64().unwrap_or(100) as usize,
-            to_stdout: config["to_stdout"].as_bool().unwrap_or(false) as bool,
             prefixes,
         };
         ret

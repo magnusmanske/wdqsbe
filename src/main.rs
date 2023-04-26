@@ -30,6 +30,7 @@ pub mod app_state_mysql_stdout;
 
 
 use clap::{Arg, Command};
+use serde_json::json;
 
 #[tokio::main]
 async fn main() -> Result<(), WDSQErr> {
@@ -43,9 +44,19 @@ async fn main() -> Result<(), WDSQErr> {
             .value_name("FILE")
             .help("Import triples from FILE")
             .num_args(1))
+        .arg(Arg::new("dbtype")
+            .short('d')
+            .long("dbtype")
+            .value_name("KEY")
+            .help("Use database type KEY")
+            .num_args(1))
         .get_matches();
 
-    let app = Arc::new(AppState::from_config_file("config.json").unwrap());
+    let mut config = AppState::get_config_from_file("config.json").unwrap();
+    if let Some(dbtype) = matches.get_one::<String>("dbtype") {
+        config["db_type"] = json!(dbtype);
+    }
+    let app = Arc::new(AppState::from_config(&config));
     app.init_from_db().await?;
     if let Some(filename) = matches.get_one::<String>("import") {
         let parser = parser::Parser{};
