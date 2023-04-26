@@ -1,12 +1,11 @@
-use mysql_async::prelude::*;
 use std::{sync::Arc, collections::HashMap, fmt::{Display, self}};
 
 use crate::{query_part::QueryPart, app_state::AppState, database_table::DatabaseTable, error::WDSQErr, type_part::TypePart, element::Element};
 
 #[derive(Debug, Clone, Default)]
 pub struct DatabaseQueryResult {
-    variables: Vec<SqlVariable>,
-    rows: Vec<Vec<Option<String>>>,
+    pub variables: Vec<SqlVariable>,
+    pub rows: Vec<Vec<Option<String>>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -340,25 +339,6 @@ impl QueryTriples {
     }
 
     pub async fn run(&self) -> Result<HashMap<String,DatabaseQueryResult>,WDSQErr> {
-        let mut conn = self.app.db_conn().await?;
-        let mut ret = HashMap::new();
-        for (group_key,part) in &self.result {
-            let mut dsr = DatabaseQueryResult::default();
-            dsr.variables = part.variables.clone();
-            let iter = conn.exec_iter(part.sql.to_owned(),part.values.to_owned()).await?;
-            let results = iter.map_and_drop(|row| row).await?;
-            for row in &results {
-                let x = row.to_owned().unwrap();
-                let res: Vec<Option<String>> = x.iter()
-                    .enumerate()
-                    .map(|(col_num,v)|{
-                        part.variables[col_num].sql_value2string(v)
-                            // v.as_sql(true)
-                    }).collect();
-                dsr.rows.push(res);
-            }
-            ret.insert(group_key.to_owned(),dsr);
-        }
-        Ok(ret)
+        self.app.run_query(&self).await
     }
 }

@@ -47,7 +47,8 @@ impl DatabaseWrapper {
                 let cache = cache.clone();
                 let app = self.app.clone();
                 tokio::spawn(async move {
-                    cache.force_flush(&app).await
+                    let ret = cache.force_flush(&app).await;
+                    ret
                 })
             })
             .collect();

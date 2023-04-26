@@ -1,9 +1,7 @@
 use std::sync::Arc;
-use futures::future::join_all;
 use serde::{Serialize, Deserialize};
-use mysql_async::{prelude::*, Conn};
 use tokio::sync::RwLock;
-use crate::{error::*, element::Element, database_table::DatabaseTable, app_state::AppState, database_wrapper::DatabaseWrapper};
+use crate::{error::*, element::Element, database_table::DatabaseTable, app_state::{AppState, AppStateStdoutMySQL}};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DbOperationCacheValue {
@@ -19,7 +17,7 @@ pub enum DbOperationCacheValue {
 }
 
 impl DbOperationCacheValue {
-    fn as_sql_placeholder(&self) -> String {
+    pub fn as_sql_placeholder(&self) -> String {
         match self {
             DbOperationCacheValue::Quoted(_) => "?".to_string(),
             DbOperationCacheValue::Text(_) => format!("(SELECT `id` FROM `texts` WHERE `value`=?)"),
@@ -33,7 +31,15 @@ impl DbOperationCacheValue {
         }
     }
 
-    fn as_sql_variable(&self) -> Option<String> {
+    pub fn as_sql_stdout(&self) -> String {
+        match self {
+            DbOperationCacheValue::Quoted(s) => format!("\"{}\"",AppStateStdoutMySQL::sql_escape(s)),
+            DbOperationCacheValue::Text(s) => format!("(SELECT `id` FROM `texts` WHERE `value`=\"{}\")",AppStateStdoutMySQL::sql_escape(s)),
+            _ => self.as_sql_placeholder(),
+        }
+    }
+
+    pub fn as_sql_variable(&self) -> Option<String> {
         match self {
             DbOperationCacheValue::Quoted(s) => Some(s.to_string()),
             DbOperationCacheValue::Text(s) => Some(s.to_string()),
@@ -84,9 +90,8 @@ impl ToString for DbOperationCacheValue {
 
 #[derive(Debug, Clone)]
 pub struct DbOperationCache {
-    command: Arc<RwLock<String>>,
-    values: Arc<RwLock<Vec<Vec<DbOperationCacheValue>>>>,
-    // number_of_values: Arc<RwLock<usize>>,
+    pub command: Arc<RwLock<String>>,
+    pub values: Arc<RwLock<Vec<Vec<DbOperationCacheValue>>>>,
 }
 
 impl DbOperationCache {
@@ -94,7 +99,6 @@ impl DbOperationCache {
         Self {
             command: Arc::new(RwLock::new(String::new())),
             values: Arc::new(RwLock::new(vec![])),
-            // number_of_values: Arc::new(RwLock::new(0)),
         }
     }
 
@@ -106,12 +110,6 @@ impl DbOperationCache {
         if values.is_empty() {
             return Err(format!("DbOperationCache::add: Nothing to do for {k:?} / {v:?}").into());
         }
-        // if self.number_of_values == 0 {
-        //     self.number_of_values = values.len();
-        // }
-        // if self.number_of_values != values.len() {
-        //     return Err(format!("DbOperationCache::add: [1] Expected {}, got {} values",self.number_of_values,values.len()).into());
-        // }
         self.values.write().await.push(values.to_owned());
 
         // Create command if necessary
@@ -130,7 +128,7 @@ impl DbOperationCache {
         Ok(())
     }
 
-    async fn prepare_text(&self, conn: &mut Conn) -> Result<(),WDSQErr> {
+    async fn prepare_text(&self, app: &Arc<AppState>) -> Result<(),WDSQErr> {
         let mut texts: Vec<_> = self.values.read().await
             .iter()
             .flatten()
@@ -147,9 +145,7 @@ impl DbOperationCache {
         texts.sort();
         texts.dedup();
         for text_chunk in texts.chunks(100) { // chunks prevent "Packet too large" errors
-            let question_marks = vec!["(?)"; text_chunk.len()].join(",");
-            let sql = format!("INSERT IGNORE INTO `texts` (`value`) VALUES {question_marks}");
-            conn.exec_drop(sql, &text_chunk.to_owned()).await?;
+            app.prepare_text(text_chunk).await?;
         }
         Ok(())
     }
@@ -159,35 +155,9 @@ impl DbOperationCache {
             return Ok(());
         }
 
-        let mut futures = vec![];
-        self.prepare_text(&mut app.db_conn().await?).await?;
-        let mut the_values = self.values.write().await;
-        for value_chunk in the_values.chunks(app.insert_chunk_size) {
-            let question_marks: Vec<_> = value_chunk
-                .iter()
-                .map(|parts|{
-                    let ret: Vec<_> = parts.iter().map(|part|part.as_sql_placeholder()).collect();
-                    format!("({})",ret.join(","))
-                })
-                .collect();
-            let question_marks = question_marks.join(",");
-            let values: Vec<_> = value_chunk
-                .iter()
-                .map(|parts|{
-                    let ret: Vec<_> = parts.iter().filter_map(|part|part.as_sql_variable()).collect();
-                    ret
-                })
-                .flatten()
-                .collect();
-            let sql = format!("{} {question_marks}",self.command.read().await);
-            let app = app.clone();
-            let future = tokio::spawn(async move {
-                app.db_conn().await?.exec_drop(sql, &values).await.map_err(|e|WDSQErr::MySQL(Arc::new(e)))
-            });
-            futures.push(future);
-        }
-        DatabaseWrapper::first_err(join_all(futures).await, true)?;
-        the_values.clear();
+        self.prepare_text(app).await?;
+        app.force_flush_all(&self).await?;
+
         Ok(())
     }
 }
