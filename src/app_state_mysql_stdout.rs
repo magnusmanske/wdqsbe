@@ -14,7 +14,7 @@ impl AppStateStdoutMySQL {
     }
 
     pub fn sql_escape(s: &str) -> String {
-        s.to_string() // TODO
+        s.replace('\\',"\\\\").replace('"', "\\\"")
     }
 
     fn sql_group_escape(&self, vs: &[String]) -> String {
