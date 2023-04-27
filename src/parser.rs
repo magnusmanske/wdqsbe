@@ -10,7 +10,7 @@ pub struct Parser {
 }
 
 impl Parser {
-    async fn parse_line(line: String, wrapper: Arc<DatabaseWrapper>) -> Result<(),WDSQErr> {
+    async fn parse_line(line: &str, wrapper: &Arc<DatabaseWrapper>) -> Result<(),WDSQErr> {
         fn element_url(input: &str) -> IResult<&str, Element> {
             let (input, _) = tag("<")(input)?;
             let (input, s) = take_until1(">")(input)?;
@@ -89,7 +89,6 @@ impl Parser {
         if let Element::Url(url) = &part2 {
             println!("parse_line: Property is URL, but should not be: {url:?}");
         }
-        // println!("{line}\n{part1:?}\n{part2:?}\n{part3:?}\n");
         wrapper.add(part1,&part2,part3).await
     }
 
@@ -97,12 +96,13 @@ impl Parser {
         if lines.is_empty() {
             return Ok(());
         }
+
         let tasks: Vec<_> = lines
             .iter()
             .cloned()
             .map(|line|{
                 let wrapper = wrapper.clone();
-                tokio::spawn(async { Self::parse_line(line, wrapper).await })
+                tokio::spawn(async move { Self::parse_line(&line, &wrapper).await })
             })
             .collect();
         DatabaseWrapper::first_err(join_all(tasks).await, false)?;
@@ -111,10 +111,11 @@ impl Parser {
 
     pub async fn import_from_file(&self, filename: &str, app: &Arc<AppState>) -> Result<(),WDSQErr> {
         let file = File::open(filename)?;
+        let buffer_size = 1024*1024;
         match filename.split('.').last() {
-            Some("bz2") => self.read_lines(&mut io::BufReader::new(MultiBzDecoder::new(file)).lines(), app).await,
-            Some("gz") => self.read_lines(&mut io::BufReader::new(GzDecoder::new(file)).lines(), app).await,
-            _ => self.read_lines(&mut io::BufReader::new(file).lines(), app).await,
+            Some("bz2") => self.read_lines(&mut io::BufReader::with_capacity(buffer_size, MultiBzDecoder::new(file)).lines(), app).await,
+            Some("gz") => self.read_lines(&mut io::BufReader::with_capacity(buffer_size, GzDecoder::new(file)).lines(), app).await,
+            _ => self.read_lines(&mut io::BufReader::with_capacity(buffer_size, file).lines(), app).await,
         }
     }
 

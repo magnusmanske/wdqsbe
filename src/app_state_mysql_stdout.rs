@@ -18,15 +18,7 @@ impl AppStateStdoutMySQL {
     }
 
     fn sql_group_escape(&self, vs: &[String]) -> String {
-        let mut ret = String::new() ;
-        for s in vs {
-            if ret.is_empty() {
-                ret += &format!("(\"{}\")",Self::sql_escape(s)); 
-            } else {
-                ret += &format!(",(\"{}\")",Self::sql_escape(s));
-            }
-        }
-        ret
+        vs.iter().map(|s|Self::sql_escape(s)).map(|s|format!("(\"{s}\")")).collect::<Vec<String>>().join(",")
     }
 }
 
@@ -64,8 +56,7 @@ impl AppDB for AppStateStdoutMySQL {
         let question_marks: Vec<_> = value_chunk
             .iter()
             .map(|parts|{
-                let ret: Vec<String> = parts.iter().map(|part|part.as_sql_stdout()).collect();
-                let ret = ret.join(",");
+                let ret = parts.iter().map(|part|part.as_sql_stdout()).collect::<Vec<String>>().join(",");
                 format!("({ret})")
             })
             .collect();

@@ -19,6 +19,7 @@ flate2 = "*"
 nom = "*"
 percent-encoding = "*"
 async-trait = "*"
+rusqlite = { version = "0.28.0", features = ["bundled"] }
 
 [profile.release]
 #lto = "fat"
