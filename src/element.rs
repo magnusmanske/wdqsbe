@@ -62,12 +62,6 @@ pub enum Element {
 
 impl Element {
     pub fn from_str(element: &str) -> Option<Self> {
-        if let Some(caps) = RE_WIKI_URL.captures(&element) {
-            let server = caps.get(1).map_or("", |m| m.as_str()).to_string();
-            let page = caps.get(2).map_or("", |m| m.as_str()).to_string();
-            return Some(Element::WikiPage((server.into(),page.into())))
-        }
-
         let (root,key) = match element.rsplit_once('/') {
             Some((root,key)) => (root,key),
             None => ("",element),
@@ -151,7 +145,15 @@ impl Element {
                 }
             }
             "http://schema.org" => Some(Element::SchemaOrg(key.to_string())),
-            _ => Some(Element::Url(element.into())),
+            _ => {
+                if let Some(caps) = RE_WIKI_URL.captures(&element) {
+                    let server = caps.get(1).map_or("", |m| m.as_str()).to_string();
+                    let page = caps.get(2).map_or("", |m| m.as_str()).to_string();
+                    Some(Element::WikiPage((server.into(),page.into())))
+                } else {
+                    Some(Element::Url(element.into()))
+                }
+            }
         }
     }
 
