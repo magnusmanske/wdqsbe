@@ -4,7 +4,7 @@ use core::fmt;
 use std::{env, fs::File, collections::HashMap, sync::Arc};
 use mysql_async::{prelude::*,Conn};
 use serde_json::Value;
-use tokio::sync::RwLock;
+use dashmap::*;
 use crate::{error::*, element::Element, database_table::DatabaseTable, db_operation_cache::{DbOperationCacheValue, DbOperationCache}, query_triples::{QueryTriples, DatabaseQueryResult}, database_wrapper::DatabaseWrapper, app_state_mysql_stdout::AppStateStdoutMySQL};
 use crate::app_state_mysql_live::AppStateLiveMySQL;
 
@@ -40,7 +40,7 @@ impl std::fmt::Debug for dyn AppDB {
 #[derive(Clone)]
 pub struct AppState {
     pub db_interface: Arc<Box<dyn AppDB + Sync + Send>>,
-    pub tables: Arc<RwLock<HashMap<String,DatabaseTable>>>,
+    pub tables: Arc<DashMap<String,DatabaseTable>>,
     pub parallel_parsing: usize,
     pub insert_batch_size: usize,
     pub insert_chunk_size: usize,
@@ -88,7 +88,7 @@ impl AppState {
         };
         let ret = Self {
             db_interface: Arc::new(db_interface),
-            tables: Arc::new(RwLock::new(HashMap::new())),
+            tables: Arc::new(DashMap::new()),
             parallel_parsing: config["parallel_parsing"].as_u64().unwrap_or(100) as usize,
             insert_batch_size: config["insert_batch_size"].as_u64().unwrap_or(100) as usize,
             insert_chunk_size: config["insert_chunk_size"].as_u64().unwrap_or(100) as usize,
@@ -115,12 +115,11 @@ impl AppState {
 
     pub async fn table(&self, s: &Element, p: &Element, o: &Element) -> Result<DatabaseTable,WDSQErr> {
         let table = DatabaseTable::new(s,p,o);
-        if self.tables.read().await.contains_key(&table.name) {
+        if self.tables.contains_key(&table.name) {
             return Ok(table);
         }
-        let mut tables = self.tables.write().await;
-        let entry = tables.entry(table.name.to_owned()) ;
-        if let std::collections::hash_map::Entry::Vacant(_) = entry {
+        let entry = self.tables.entry(table.name.to_owned()) ;
+        if let mapref::entry::Entry::Vacant(_) = entry {
             self.db_interface.table(&table).await?;
             entry.or_insert(table.clone());
         }

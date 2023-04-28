@@ -149,19 +149,20 @@ impl QueryTriples {
     }
 
     async fn filter_tables(&self, app: &AppState) -> Vec<String> {
-        app.tables.read().await
-            .iter()
-            .filter(|(_,table)|self.table_matches_property(table))
-            .filter(|(_,table)|self.table_matches_subject(table))
-            .filter(|(_,table)|self.table_matches_object(table))
-            .map(|(table_name,_table)|table_name.to_string())
-            .collect()
+        let mut ret = vec![];
+        for r in app.tables.iter() {
+            let table = r.value();
+            if self.table_matches_property(table) && self.table_matches_subject(table) && self.table_matches_object(table) {
+                ret.push(r.key().to_owned());
+            }
+        }
+        ret
     }
 
     async fn group_tables(&self, tables: Vec<String>, app: &AppState) -> HashMap<String,Vec<String>> {
         let mut ret = HashMap::new() ;
         for table_name in tables {
-            if let Some(table) = app.tables.read().await.get(&table_name) {
+            if let Some(table) = app.tables.get(&table_name) {
                 let names = table.names();
                 let key = format!("{}__{}__{}",names.0,names.1,names.2);
                 ret.entry(key).or_insert(vec![]).push(table_name);
@@ -236,8 +237,7 @@ impl QueryTriples {
     async fn get_sql_return_params(&self, table_name: &str, app: &AppState) -> Result<(Vec<String>,Vec<SqlVariable>),WDSQErr> {
         let mut params = vec![];
         let mut ret_variables = vec![];
-        let tables = app.tables.read().await;
-        let table = tables.get(table_name).ok_or_else(|| WDSQErr::String(format!("get_sql_return_params: Missing table '{table_name}'")))?;
+        let table = app.tables.get(table_name).ok_or_else(|| WDSQErr::String(format!("get_sql_return_params: Missing table '{table_name}'")))?;
         let names = table.names().to_owned();
 
         if let Some(variable) = &self.s_meta.variable {
