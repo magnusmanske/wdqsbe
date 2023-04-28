@@ -1,21 +1,18 @@
 use std::{io::{self, BufRead, Lines}, fs::File, sync::Arc};
-use futures::future::join_all;
 use nom::{IResult, bytes::complete::{tag, take_until, take_until1}, branch::alt, character::complete::space1};
 use crate::{element::Element, app_state::AppState, error::WDSQErr, database_wrapper::DatabaseWrapper, lat_lon::LatLon, element_type::ElementType, date_time::DateTime};
 use bzip2::read::MultiBzDecoder;
 use flate2::read::GzDecoder;
 
 #[derive(Clone, Debug)]
-pub struct Parser {
-    process_lines_serial: bool,
-}
+pub struct Parser {}
 
 impl Parser {
     pub fn new() -> Self {
-        Self { process_lines_serial: false }
+        Self {}
     }
 
-    async fn parse_line(line: &str, wrapper: &Arc<DatabaseWrapper>) -> Result<(),WDSQErr> {
+    fn parse_line(line: &str) -> Result<(Element,Element,Element),WDSQErr> {
         fn element_url(input: &str) -> IResult<&str, Element> {
             let (input, _) = tag("<")(input)?;
             let (input, s) = take_until1(">")(input)?;
@@ -94,35 +91,23 @@ impl Parser {
         if let Element::Url(url) = &part2 {
             println!("parse_line: Property is URL, but should not be: {url:?}");
         }
-        wrapper.add(part1,&part2,part3).await
+        Ok((part1,part2,part3))
     }
 
-    async fn process_lines(&self, lines: &Vec<String>, wrapper: &Arc<DatabaseWrapper>) -> Result<(),WDSQErr> {
-        if lines.is_empty() {
-            return Ok(());
-        }
-
-        if self.process_lines_serial {
-            for line in lines {
-                match Self::parse_line(&line, &wrapper).await {
-                    Ok(_) => {},
+    async fn read_lines<T: BufRead>(&self, lines_iter: &mut Lines<T>, app: &Arc<AppState>) -> Result<(),WDSQErr> {
+        let mut wrapper = DatabaseWrapper::new(app.clone());
+        while let Some(line) = lines_iter.next() {
+            if let Ok(line) = line {
+                let _ = match Self::parse_line(&line) {
+                    Ok((part1,part2,part3)) => wrapper.add(part1,&part2,part3).await,
                     Err(e) => {
                         eprintln!("PARSER ERROR:\n{line}\n{e}");
+                        Ok(())
                     }
-                }
+                };
             }
-        } else {
-            let tasks: Vec<_> = lines
-                .iter()
-                .cloned()
-                .map(|line|{
-                    let wrapper = wrapper.clone();
-                    tokio::spawn(async move { Self::parse_line(&line, &wrapper).await })
-                })
-                .collect();
-            DatabaseWrapper::first_err(join_all(tasks).await, false)?;
         }
-        Ok(())
+        wrapper.flush_insert_caches().await
     }
 
     pub async fn import_from_file(&self, filename: &str, app: &Arc<AppState>) -> Result<(),WDSQErr> {
@@ -133,22 +118,6 @@ impl Parser {
             Some("gz") => self.read_lines(&mut io::BufReader::with_capacity(buffer_size, GzDecoder::new(file)).lines(), app).await,
             _ => self.read_lines(&mut io::BufReader::with_capacity(buffer_size, file).lines(), app).await,
         }
-    }
-
-    async fn read_lines<T: BufRead>(&self, lines_iter: &mut Lines<T>, app: &Arc<AppState>) -> Result<(),WDSQErr> {
-        let mut lines = vec![];
-        let wrapper = Arc::new(DatabaseWrapper::new(app.clone()));
-        while let Some(line) = lines_iter.next() {
-            if let Ok(line) = line {
-                lines.push(line);
-                if lines.len()>app.parallel_parsing {
-                    self.process_lines(&lines, &wrapper).await?;
-                    lines.clear();
-                }
-            }
-        }
-        self.process_lines(&lines, &wrapper).await?;
-        wrapper.flush_insert_caches().await
     }
 
 }

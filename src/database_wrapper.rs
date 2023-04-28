@@ -1,56 +1,50 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{sync::Arc, collections::HashMap};
 use futures::future::join_all;
-use tokio::sync::RwLock;
 use crate::{error::*, element::Element, db_operation_cache::DbOperationCache, app_state::AppState};
 
 
 #[derive(Debug, Clone)]
 pub struct DatabaseWrapper {
     app: Arc<AppState>,
-    insert_cache: Arc<RwLock<HashMap<String,DbOperationCache>>>,
+    insert_cache: HashMap<String,DbOperationCache>,
 }
 
 impl DatabaseWrapper {
     pub fn new(app: Arc<AppState>) -> Self {
         Self {
             app,
-            insert_cache: Arc::new(RwLock::new(HashMap::new())),
+            insert_cache: HashMap::new(),
         }
     }
 
-    pub async fn add(&self, s: Element, p: &Element, o: Element) -> Result<(),WDSQErr> {
+    pub async fn add(&mut self, s: Element, p: &Element, o: Element) -> Result<(),WDSQErr> {
         let table = self.app.table(&s,p,&o).await?;
         let mut values = s.values();
         values.append(&mut o.values());
 
-        if let Some(cache) = self.insert_cache.read().await.get(&table.name) {
+        if let Some(cache) = self.insert_cache.get_mut(&table.name) {
             cache.add(&s, &o, &table, values, &self.app).await?;
             return Ok(())
         }
 
         // Add new
-        self.insert_cache.write().await
+        self.insert_cache
             .entry(table.name.to_owned())
             .or_insert(DbOperationCache::new());
 
-        self.insert_cache.read().await.get(&table.name).unwrap()
+        self.insert_cache.get_mut(&table.name).unwrap()
             .add(&s, &o, &table, values, &self.app)
             .await?;
         Ok(())
     }
 
-    pub async fn flush_insert_caches(&self) -> Result<(),WDSQErr> {
-        let mut insert_cache = self.insert_cache.write().await;
-        let tasks: Vec<_> = insert_cache
-            .iter()
-            .map(|(_table_name,cache)|{
-                let cache = cache.clone();
-                let app = self.app.clone();
-                tokio::spawn(async move { cache.force_flush(&app).await })
-            })
-            .collect();
+    pub async fn flush_insert_caches(&mut self) -> Result<(),WDSQErr> {
+        let mut tasks = vec![];
+        for (_,cache) in self.insert_cache.drain() {
+            let app = self.app.clone();
+            tasks.push(tokio::spawn(async move { cache.force_flush(&app).await }));
+        }
         Self::first_err(join_all(tasks).await, true)?;
-        insert_cache.clear();
         Ok(())
     }
 

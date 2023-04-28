@@ -141,10 +141,8 @@ impl AppState {
 
     pub async fn force_flush_all(&self, oc: &DbOperationCache) -> Result<(),WDSQErr> {
         let mut futures = vec![];
-        let the_values = oc.values.write().await;
-        let command = oc.command.read().await;
-        for value_chunk in the_values.chunks(self.insert_chunk_size) {
-            let to_the_future = self.force_flush(&command, value_chunk).await?;
+        for value_chunk in oc.values.chunks(self.insert_chunk_size) {
+            let to_the_future = self.force_flush(&oc.command, value_chunk).await?;
             for (sql,values) in to_the_future {
                 let dbi = self.db_interface.clone();
                 let future = tokio::spawn(async move {
