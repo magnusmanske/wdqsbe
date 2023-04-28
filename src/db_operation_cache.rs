@@ -1,6 +1,4 @@
-use std::sync::Arc;
 use serde::{Serialize, Deserialize};
-use tokio::sync::RwLock;
 use crate::{error::*, element::Element, database_table::DatabaseTable, app_state::AppState, app_state_mysql_stdout::AppStateStdoutMySQL};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -90,30 +88,30 @@ impl ToString for DbOperationCacheValue {
 
 #[derive(Debug, Clone)]
 pub struct DbOperationCache {
-    pub command: Arc<RwLock<String>>,
-    pub values: Arc<RwLock<Vec<Vec<DbOperationCacheValue>>>>,
+    pub command: String,
+    pub values: Vec<Vec<DbOperationCacheValue>>,
 }
 
 impl DbOperationCache {
     pub fn new() -> Self {
         Self {
-            command: Arc::new(RwLock::new(String::new())),
-            values: Arc::new(RwLock::new(vec![])),
+            command: String::new(),
+            values: vec![],
         }
     }
 
-    pub async fn clear(&self) {
-        self.values.write().await.clear();
+    pub async fn clear(&mut self) {
+        self.values.clear();
     }
 
-    pub async fn add(&self, k: &Element, v: &Element, table: &DatabaseTable, values: Vec<DbOperationCacheValue>, app: &Arc<AppState>) -> Result<(),WDSQErr> {
+    pub async fn add(&mut self, k: &Element, v: &Element, table: &DatabaseTable, values: Vec<DbOperationCacheValue>, app: &AppState) -> Result<(),WDSQErr> {
         if values.is_empty() {
             return Err(format!("DbOperationCache::add: Nothing to do for {k:?} / {v:?}").into());
         }
-        self.values.write().await.push(values.to_owned());
+        self.values.push(values.to_owned());
 
         // Create command if necessary
-        if !self.command.read().await.is_empty() {
+        if !self.command.is_empty() {
             return Ok(());
         }
         let mut fields: Vec<String> = k.fields("k");
@@ -121,15 +119,15 @@ impl DbOperationCache {
         if fields.len()!=values.len() {
             return Err(format!("DbOperationCache::add: [2] Expected {} fields, got {}",values.len(),fields.len()).into());
         }
-        *self.command.write().await = format!("INSERT IGNORE INTO `{}` (`{}`) VALUES ",&table.name,fields.join("`,`"));
-        if self.values.read().await.len()>=app.insert_batch_size {
+        self.command = format!("INSERT IGNORE INTO `{}` (`{}`) VALUES ",&table.name,fields.join("`,`"));
+        if self.values.len()>=app.insert_batch_size {
             self.force_flush(app).await?;
         }
         Ok(())
     }
 
-    async fn prepare_text(&self, app: &Arc<AppState>) -> Result<(),WDSQErr> {
-        let mut texts: Vec<_> = self.values.read().await
+    async fn prepare_text(&self, app: &AppState) -> Result<(),WDSQErr> {
+        let mut texts: Vec<_> = self.values
             .iter()
             .flatten()
             .filter_map(|part|{
@@ -150,8 +148,8 @@ impl DbOperationCache {
         Ok(())
     }
 
-    pub async fn force_flush(&self, app: &Arc<AppState>) -> Result<(),WDSQErr> {
-        if self.values.read().await.is_empty() {
+    pub async fn force_flush(&self, app: &AppState) -> Result<(),WDSQErr> {
+        if self.values.is_empty() {
             return Ok(());
         }
 

@@ -42,10 +42,9 @@ impl AppDB for AppStateLiveMySQL {
         let results = conn
             .exec_iter(sql, ()).await?
             .map_and_drop(|row| mysql_async::from_row::<(String,String)>(row)).await?;
-        let mut tables = app.tables.write().await;
         for (name,json) in results {
             let table: DatabaseTable = serde_json::from_str(&json)?;
-            tables.insert(name,table);
+            app.tables.insert(name,table);
         }
         Ok(())
     }
