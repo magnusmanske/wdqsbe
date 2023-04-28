@@ -7,9 +7,14 @@ use flate2::read::GzDecoder;
 
 #[derive(Clone, Debug)]
 pub struct Parser {
+    process_lines_serial: bool,
 }
 
 impl Parser {
+    pub fn new() -> Self {
+        Self { process_lines_serial: false }
+    }
+
     async fn parse_line(line: &str, wrapper: &Arc<DatabaseWrapper>) -> Result<(),WDSQErr> {
         fn element_url(input: &str) -> IResult<&str, Element> {
             let (input, _) = tag("<")(input)?;
@@ -97,15 +102,26 @@ impl Parser {
             return Ok(());
         }
 
-        let tasks: Vec<_> = lines
-            .iter()
-            .cloned()
-            .map(|line|{
-                let wrapper = wrapper.clone();
-                tokio::spawn(async move { Self::parse_line(&line, &wrapper).await })
-            })
-            .collect();
-        DatabaseWrapper::first_err(join_all(tasks).await, false)?;
+        if self.process_lines_serial {
+            for line in lines {
+                match Self::parse_line(&line, &wrapper).await {
+                    Ok(_) => {},
+                    Err(e) => {
+                        eprintln!("PARSER ERROR:\n{line}\n{e}");
+                    }
+                }
+            }
+        } else {
+            let tasks: Vec<_> = lines
+                .iter()
+                .cloned()
+                .map(|line|{
+                    let wrapper = wrapper.clone();
+                    tokio::spawn(async move { Self::parse_line(&line, &wrapper).await })
+                })
+                .collect();
+            DatabaseWrapper::first_err(join_all(tasks).await, false)?;
+        }
         Ok(())
     }
 
@@ -123,11 +139,12 @@ impl Parser {
         let mut lines = vec![];
         let wrapper = Arc::new(DatabaseWrapper::new(app.clone()));
         while let Some(line) = lines_iter.next() {
-            let line = line.unwrap();
-            lines.push(line);
-            if lines.len()>app.parallel_parsing {
-                self.process_lines(&lines, &wrapper).await?;
-                lines.clear();
+            if let Ok(line) = line {
+                lines.push(line);
+                if lines.len()>app.parallel_parsing {
+                    self.process_lines(&lines, &wrapper).await?;
+                    lines.clear();
+                }
             }
         }
         self.process_lines(&lines, &wrapper).await?;
