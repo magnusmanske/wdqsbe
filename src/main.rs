@@ -42,7 +42,7 @@ async fn main() -> Result<(), WDSQErr> {
             .short('i')
             .long("import")
             .value_name("FILE")
-            .help("Import triples from FILE")
+            .help("Import triples from FILE (NT dump, plain text or gz/bzip)")
             .num_args(1))
         .arg(Arg::new("dbtype")
             .short('d')
