@@ -51,7 +51,6 @@ impl AppDB for AppStateLiveMySQL {
 
     /// Returns a connection to the tool database
     async fn db_conn(&self) -> Result<Conn, mysql_async::Error> {
-        println!("Getting DB connection...");
         self.db_pool.get_conn().await
     }
 
