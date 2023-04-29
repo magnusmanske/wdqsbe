@@ -25,7 +25,7 @@ pub const MYSQL_CREATE_TABLE_LIST_TABLE: &str = r#"CREATE TABLE IF NOT EXISTS `t
 pub trait AppDB {
     async fn init_from_db(&self, app: &AppState) -> Result<(),WDSQErr> ;
     async fn db_conn(&self) -> Result<Conn, mysql_async::Error> ;
-    async fn table(&self, table: &DatabaseTable) -> Result<(),WDSQErr> ;
+    async fn add_to_table_list(&self, table: &DatabaseTable) -> Result<(),WDSQErr> ;
     async fn prepare_text(&self, text_chunk: &[String]) -> Result<(),WDSQErr> ;
     async fn force_flush(&self, command: &str, value_chunk: &[Vec<DbOperationCacheValue>]) -> Result<Vec<(String, Vec<String>)>,WDSQErr> ;
     async fn run_query(&self, app: &AppState, query: &QueryTriples) -> Result<HashMap<String,DatabaseQueryResult>,WDSQErr> ;
@@ -120,7 +120,7 @@ impl AppState {
         }
         let entry = self.tables.entry(table.name.to_owned()) ;
         if let mapref::entry::Entry::Vacant(_) = entry {
-            self.db_interface.table(&table).await?;
+            self.db_interface.add_to_table_list(&table).await?;
             entry.or_insert(table.clone());
         }
         Ok(table)

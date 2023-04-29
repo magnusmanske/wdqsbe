@@ -35,7 +35,7 @@ impl AppDB for AppStateStdoutMySQL {
         Err(mysql_async::Error::Other(Box::new(e)))
     }
 
-    async fn table(&self, table: &DatabaseTable) -> Result<(),WDSQErr> {
+    async fn add_to_table_list(&self, table: &DatabaseTable) -> Result<(),WDSQErr> {
         let name = table.name.to_owned();
         let json = json!(table).to_string();
         let sql = table.create_statement();
