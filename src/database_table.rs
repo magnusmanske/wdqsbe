@@ -92,7 +92,7 @@ impl DatabaseTable {
                 } else {
                     parts.push(format!("`id` INT(11) NOT NULL AUTO_INCREMENT,"));
                     parts.push(format!("PRIMARY KEY (`id`)"));
-                    println!("ATTENTION: Table {} has {number_of_text_fields} long text fields, and therefore no UNIQUE index!", self.name);
+                    eprintln!("ATTENTION: Table {} has {number_of_text_fields} long text fields, and therefore no UNIQUE index!", self.name);
                     // TODO unique key for this? Like:
                     // UNIQUE INDEX `index_all` (`k0`,`k1`(100),`v0`(100),`v1`),
                 }
@@ -100,7 +100,6 @@ impl DatabaseTable {
         }
 
         parts.push(format!(") ENGINE=Aria"));
-        // println!("{}",parts.join(" "));
         parts.join("\n")
     }
 }

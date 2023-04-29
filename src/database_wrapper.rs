@@ -56,7 +56,7 @@ impl DatabaseWrapper {
             .collect();
         if let Some(Err(e)) = errors.get(0) {
             if errors.len()>1 || !exit {
-                println!("{errors:?}");
+                eprintln!("{errors:?}");
             }
             if exit {
                 return Err(e.to_string().into());

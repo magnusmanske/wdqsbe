@@ -50,7 +50,7 @@ impl Parser {
                 "http://www.w3.org/2001/XMLSchema#double" => return Some(Element::Float(s.parse::<f64>().ok()?)), // For now, same as decimal
                 "http://www.w3.org/2001/XMLSchema#integer" => return Some(Element::Int(s.parse::<i64>().ok()?)),
                 other => {
-                    println!("element_from_type: Unknown type '{other}' for '{s}'");
+                    eprintln!("element_from_type: Unknown type '{other}' for '{s}'");
                     return Some(Element::Url(s.into()));
                 }
             }
@@ -64,7 +64,7 @@ impl Parser {
                 let element = match element_from_type(s, type_s) {
                     Some(element) => element,
                     None => {
-                        println!("element_string: type parsing has failed: '{input}' / '{type_s}'");
+                        eprintln!("element_string: type parsing has failed: '{input}' / '{type_s}'");
                         Element::Text(s.into())
                     }
                 };
@@ -89,7 +89,7 @@ impl Parser {
         let (_,part3) = element(input)?;
 
         if let Element::Url(url) = &part2 {
-            println!("parse_line: Property is URL, but should not be: {url:?}");
+            eprintln!("parse_line: Property is URL, but should not be: {url:?}");
         }
         Ok((part1,part2,part3))
     }

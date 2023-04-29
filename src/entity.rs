@@ -43,7 +43,7 @@ impl ElementType for Entity {
                 caps.get(2).unwrap().as_str().parse().unwrap_or(0)
             ))))
         } else {
-            println!("Unknown entity pattern: '{s}'");
+            eprintln!("Unknown entity pattern: '{s}'");
             Some(Box::new(Entity::Unknown(s.to_string())))
         }
     }

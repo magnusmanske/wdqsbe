@@ -44,7 +44,6 @@ impl ElementType for UUID40 {
 
     fn values(&self) -> Vec<DbOperationCacheValue> {
         let s = format!("UNHEX(\"{}\")", &self.uuid);
-        // println!("{s}");
         vec![DbOperationCacheValue::Expression(s)]
     }
 
@@ -109,7 +108,6 @@ impl ElementType for UUID32 {
 
     fn values(&self) -> Vec<DbOperationCacheValue> {
         let s = format!("UNHEX(\"{}\")", &self.uuid);
-        // println!("{s}");
         vec![DbOperationCacheValue::Expression(s)]
     }
 
