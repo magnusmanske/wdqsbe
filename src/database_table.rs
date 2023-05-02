@@ -18,7 +18,7 @@ impl DatabaseTable {
         let object_label = o.get_table_name();
         let name = format!("data__{prop_label}__{subject_label}__{object_label}");
         if name.len()>64 { // Paranoia
-            panic!("DatabaseTable::new: Table name `{name}` has more than 64 characters");
+            eprintln!("ATTENTION: DatabaseTable::new: Table name `{name}` has more than 64 characters, not valid in MySQL");
         }
         Self {
             name,
