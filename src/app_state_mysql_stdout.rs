@@ -24,18 +24,18 @@ impl AppStateStdoutMySQL {
 
 #[async_trait]
 impl AppDB for AppStateStdoutMySQL {
-    async fn init_from_db(&self, _app: &AppState) -> Result<(),WDSQErr> {
+    async fn init_from_db(&self, _app: &AppState) -> Result<(),WDQSErr> {
         println!("{MYSQL_CREATE_TEXTS_TABLE};");
         println!("{MYSQL_CREATE_TABLE_LIST_TABLE};");
         Ok(())
     }
 
     async fn db_conn(&self) -> Result<Conn, mysql_async::Error> {
-        let e = WDSQErr::String("AppStateStdoutMySQL::db_conn".into());
+        let e = WDQSErr::String("AppStateStdoutMySQL::db_conn".into());
         Err(mysql_async::Error::Other(Box::new(e)))
     }
 
-    async fn add_to_table_list(&self, table: &DatabaseTable) -> Result<(),WDSQErr> {
+    async fn add_to_table_list(&self, table: &DatabaseTable) -> Result<(),WDQSErr> {
         let name = table.name.to_owned();
         let json = json!(table).to_string();
         let sql = table.create_statement();
@@ -45,14 +45,14 @@ impl AppDB for AppStateStdoutMySQL {
         Ok(())
     }
 
-    async fn prepare_text(&self, text_chunk: &[String]) -> Result<(),WDSQErr> {
+    async fn prepare_text(&self, text_chunk: &[String]) -> Result<(),WDQSErr> {
         let values = self.sql_group_escape(text_chunk);
         let sql = format!("INSERT IGNORE INTO `texts` (`value`) VALUES {values}");
         println!("{sql};");
         Ok(())
     }
 
-    async fn force_flush(&self, command: &str, value_chunk: &[Vec<DbOperationCacheValue>]) -> Result<Vec<(String, Vec<String>)>,WDSQErr> {
+    async fn force_flush(&self, command: &str, value_chunk: &[Vec<DbOperationCacheValue>]) -> Result<Vec<(String, Vec<String>)>,WDQSErr> {
         let question_marks: Vec<_> = value_chunk
             .iter()
             .map(|parts|{
@@ -66,7 +66,7 @@ impl AppDB for AppStateStdoutMySQL {
         Ok(vec![])
     }
 
-    async fn run_query(&self, _app: &AppState, _query: &QueryTriples) -> Result<HashMap<String,DatabaseQueryResult>,WDSQErr> {
+    async fn run_query(&self, _app: &AppState, _query: &QueryTriples) -> Result<HashMap<String,DatabaseQueryResult>,WDQSErr> {
         panic!("AppStateStdoutMySQL::run_query can never be implemented")
     }
 }

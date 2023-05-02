@@ -17,7 +17,7 @@ impl DatabaseWrapper {
         }
     }
 
-    pub async fn add(&mut self, s: Element, p: &Element, o: Element) -> Result<(),WDSQErr> {
+    pub async fn add(&mut self, s: Element, p: &Element, o: Element) -> Result<(),WDQSErr> {
         let table = self.app.table(&s,p,&o).await?;
         let mut values = s.values();
         values.append(&mut o.values());
@@ -38,7 +38,7 @@ impl DatabaseWrapper {
         Ok(())
     }
 
-    pub async fn flush_insert_caches(&mut self) -> Result<(),WDSQErr> {
+    pub async fn flush_insert_caches(&mut self) -> Result<(),WDQSErr> {
         let mut tasks = vec![];
         for (_,cache) in self.insert_cache.drain() {
             let app = self.app.clone();
@@ -48,10 +48,10 @@ impl DatabaseWrapper {
         Ok(())
     }
 
-    pub fn first_err(results: Vec<Result<Result<(), WDSQErr>, tokio::task::JoinError>>, exit: bool) -> Result<(),WDSQErr> {
+    pub fn first_err(results: Vec<Result<Result<(), WDQSErr>, tokio::task::JoinError>>, exit: bool) -> Result<(),WDQSErr> {
         let errors: Vec<_> = results
             .iter()
-            .filter_map(|result|result.as_ref().ok()) // Remove Join errors to get to the WDSQErr
+            .filter_map(|result|result.as_ref().ok()) // Remove Join errors to get to the WDQSErr
             .filter(|result|result.is_err())
             .collect();
         if let Some(Err(e)) = errors.get(0) {

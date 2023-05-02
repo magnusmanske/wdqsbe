@@ -23,12 +23,12 @@ pub const MYSQL_CREATE_TABLE_LIST_TABLE: &str = r#"CREATE TABLE IF NOT EXISTS `t
 
 #[async_trait]
 pub trait AppDB {
-    async fn init_from_db(&self, app: &AppState) -> Result<(),WDSQErr> ;
+    async fn init_from_db(&self, app: &AppState) -> Result<(),WDQSErr> ;
     async fn db_conn(&self) -> Result<Conn, mysql_async::Error> ;
-    async fn add_to_table_list(&self, table: &DatabaseTable) -> Result<(),WDSQErr> ;
-    async fn prepare_text(&self, text_chunk: &[String]) -> Result<(),WDSQErr> ;
-    async fn force_flush(&self, command: &str, value_chunk: &[Vec<DbOperationCacheValue>]) -> Result<Vec<(String, Vec<String>)>,WDSQErr> ;
-    async fn run_query(&self, app: &AppState, query: &QueryTriples) -> Result<HashMap<String,DatabaseQueryResult>,WDSQErr> ;
+    async fn add_to_table_list(&self, table: &DatabaseTable) -> Result<(),WDQSErr> ;
+    async fn prepare_text(&self, text_chunk: &[String]) -> Result<(),WDQSErr> ;
+    async fn force_flush(&self, command: &str, value_chunk: &[Vec<DbOperationCacheValue>]) -> Result<Vec<(String, Vec<String>)>,WDQSErr> ;
+    async fn run_query(&self, app: &AppState, query: &QueryTriples) -> Result<HashMap<String,DatabaseQueryResult>,WDQSErr> ;
 }
 
 impl std::fmt::Debug for dyn AppDB {
@@ -60,12 +60,12 @@ impl fmt::Debug for AppState {
 
 impl AppState {
     /// Create an AppState object from a config JSON file
-    pub fn from_config_file(filename: &str) -> Result<Self,WDSQErr> {
+    pub fn from_config_file(filename: &str) -> Result<Self,WDQSErr> {
         let config = Self::get_config_from_file(filename)?;
         Ok(Self::from_config(&config))
     }
 
-    pub fn get_config_from_file(filename: &str) -> Result<Value,WDSQErr> {
+    pub fn get_config_from_file(filename: &str) -> Result<Value,WDQSErr> {
         let mut path = env::current_dir().expect("Can't get CWD");
         path.push(filename);
         let file = File::open(&path)?;
@@ -109,11 +109,11 @@ impl AppState {
         }
     }
 
-    pub async fn init_from_db(&self) -> Result<(),WDSQErr> {
+    pub async fn init_from_db(&self) -> Result<(),WDQSErr> {
         self.db_interface.init_from_db(&self).await
     }
 
-    pub async fn table(&self, s: &Element, p: &Element, o: &Element) -> Result<DatabaseTable,WDSQErr> {
+    pub async fn table(&self, s: &Element, p: &Element, o: &Element) -> Result<DatabaseTable,WDQSErr> {
         let table = DatabaseTable::new(s,p,o);
         if self.tables.contains_key(&table.name) {
             return Ok(table);
@@ -126,11 +126,11 @@ impl AppState {
         Ok(table)
     }
 
-    pub async fn prepare_text(&self, text_chunk: &[String]) -> Result<(),WDSQErr> {
+    pub async fn prepare_text(&self, text_chunk: &[String]) -> Result<(),WDQSErr> {
         self.db_interface.prepare_text(text_chunk).await
     }
 
-    pub async fn force_flush(&self, command: &str, value_chunk: &[Vec<DbOperationCacheValue>]) -> Result<Vec<(String, Vec<String>)>,WDSQErr> {
+    pub async fn force_flush(&self, command: &str, value_chunk: &[Vec<DbOperationCacheValue>]) -> Result<Vec<(String, Vec<String>)>,WDQSErr> {
         self.db_interface.force_flush(command, value_chunk).await
     }
 
@@ -138,14 +138,14 @@ impl AppState {
         self.db_interface.db_conn().await
     }
 
-    pub async fn force_flush_all(&self, oc: &DbOperationCache) -> Result<(),WDSQErr> {
+    pub async fn force_flush_all(&self, oc: &DbOperationCache) -> Result<(),WDQSErr> {
         let mut futures = vec![];
         for value_chunk in oc.values.chunks(self.insert_chunk_size) {
             let to_the_future = self.force_flush(&oc.command, value_chunk).await?;
             for (sql,values) in to_the_future {
                 let dbi = self.db_interface.clone();
                 let future = tokio::spawn(async move {
-                    dbi.db_conn().await?.exec_drop(sql, &values).await.map_err(|e|WDSQErr::MySQL(Arc::new(e)))
+                    dbi.db_conn().await?.exec_drop(sql, &values).await.map_err(|e|WDQSErr::MySQL(Arc::new(e)))
                 });
                 futures.push(future);
             }
@@ -153,7 +153,7 @@ impl AppState {
         DatabaseWrapper::first_err(join_all(futures).await, true)
     }
 
-    pub async fn run_query(&self, query: &QueryTriples) -> Result<HashMap<String,DatabaseQueryResult>,WDSQErr> {
+    pub async fn run_query(&self, query: &QueryTriples) -> Result<HashMap<String,DatabaseQueryResult>,WDQSErr> {
         self.db_interface.run_query(self, query).await
     }
 

@@ -5,7 +5,7 @@ extern crate tokio;
 
 use std::sync::Arc;
 use app_state::AppState;
-use error::WDSQErr;
+use error::WDQSErr;
 use query_triples::QueryTriples;
 
 pub mod type_part;
@@ -33,7 +33,7 @@ use clap::{Arg, Command};
 use serde_json::json;
 
 #[tokio::main]
-async fn main() -> Result<(), WDSQErr> {
+async fn main() -> Result<(), WDQSErr> {
     let matches = Command::new("wdqsbe")
         .version("0.1.0")
         .author("Magnus Manske <magnusmanske@googlemail.com>")

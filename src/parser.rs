@@ -1,6 +1,6 @@
 use std::{io::{self, BufRead, Lines}, fs::File, sync::Arc};
 use nom::{IResult, bytes::complete::{tag, take_until, take_until1}, branch::alt, character::complete::space1, error::{VerboseError, VerboseErrorKind}};
-use crate::{element::Element, app_state::AppState, error::WDSQErr, database_wrapper::DatabaseWrapper, lat_lon::LatLon, element_type::ElementType, date_time::DateTime};
+use crate::{element::Element, app_state::AppState, error::WDQSErr, database_wrapper::DatabaseWrapper, lat_lon::LatLon, element_type::ElementType, date_time::DateTime};
 use bzip2::read::MultiBzDecoder;
 use flate2::read::GzDecoder;
 
@@ -12,7 +12,7 @@ impl Parser {
         Self {}
     }
 
-    fn parse_line(line: &str) -> Result<(Element,Element,Element),WDSQErr> {
+    fn parse_line(line: &str) -> Result<(Element,Element,Element),WDQSErr> {
         type Res<T, U> = IResult<T, U, VerboseError<T>>;
         
         fn element_url(input: &str) -> Res<&str, Element> {
@@ -89,16 +89,16 @@ impl Parser {
             Ok((input,(part1,part2,part3)))
         }
 
-        fn parse_line(line: &str) -> Result<(Element,Element,Element),WDSQErr> {
+        fn parse_line(line: &str) -> Result<(Element,Element,Element),WDQSErr> {
             let (part1,part2,part3) = match parse_line_sub(line) {
                 Ok((_,part123)) => part123,
-                Err(e) => return Err(WDSQErr::String(e.to_string())),
+                Err(e) => return Err(WDQSErr::String(e.to_string())),
             };
             if let Element::Url(url) = &part2 {
-                return Err(WDSQErr::String(format!("parse_line: Property is URL, but should not be: {url:?}")));
-                // eprintln!("parse_line: Property is URL, but should not be: {url:?}, line:\n{line}\n");
+                Err(WDQSErr::String(format!("parse_line: Property is URL, but should not be: {url:?}")))
+            } else {
+                Ok((part1,part2,part3))
             }
-            Ok((part1,part2,part3))    
         }
 
         match parse_line(line) {
@@ -111,7 +111,7 @@ impl Parser {
 
     }
 
-    async fn read_lines<T: BufRead>(&self, lines_iter: &mut Lines<T>, app: &Arc<AppState>) -> Result<(),WDSQErr> {
+    async fn read_lines<T: BufRead>(&self, lines_iter: &mut Lines<T>, app: &Arc<AppState>) -> Result<(),WDQSErr> {
         let mut wrapper = DatabaseWrapper::new(app.clone());
         while let Some(line) = lines_iter.next() {
             if let Ok(line) = line {
@@ -127,7 +127,7 @@ impl Parser {
         wrapper.flush_insert_caches().await
     }
 
-    pub async fn import_from_file(&self, filename: &str, app: &Arc<AppState>) -> Result<(),WDSQErr> {
+    pub async fn import_from_file(&self, filename: &str, app: &Arc<AppState>) -> Result<(),WDQSErr> {
         let file = File::open(filename)?;
         let buffer_size = 1024*1024;
         match filename.split('.').last() {

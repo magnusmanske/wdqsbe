@@ -108,7 +108,7 @@ impl DbOperationCache {
         self.values.clear();
     }
 
-    pub async fn add(&mut self, k: &Element, v: &Element, table: &DatabaseTable, values: Vec<DbOperationCacheValue>, app: &AppState) -> Result<(),WDSQErr> {
+    pub async fn add(&mut self, k: &Element, v: &Element, table: &DatabaseTable, values: Vec<DbOperationCacheValue>, app: &AppState) -> Result<(),WDQSErr> {
         if values.is_empty() {
             return Err(format!("DbOperationCache::add: Nothing to do for {k:?} / {v:?}").into());
         }
@@ -130,7 +130,7 @@ impl DbOperationCache {
         Ok(())
     }
 
-    async fn prepare_text(&self, app: &AppState) -> Result<(),WDSQErr> {
+    async fn prepare_text(&self, app: &AppState) -> Result<(),WDQSErr> {
         let mut texts: Vec<_> = self.values
             .iter()
             .flatten()
@@ -152,7 +152,7 @@ impl DbOperationCache {
         Ok(())
     }
 
-    pub async fn force_flush(&self, app: &AppState) -> Result<(),WDSQErr> {
+    pub async fn force_flush(&self, app: &AppState) -> Result<(),WDQSErr> {
         if self.values.is_empty() {
             return Ok(());
         }

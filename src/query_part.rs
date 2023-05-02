@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use crate::{element::Element, app_state::AppState, error::WDSQErr};
+use crate::{element::Element, app_state::AppState, error::WDQSErr};
 
 #[derive(Debug, Clone)]
 pub enum QueryPart {
@@ -9,7 +9,7 @@ pub enum QueryPart {
 }
 
 impl QueryPart {
-    pub fn from_str(s: &str, app: &Arc<AppState>) -> Result<Self,WDSQErr> {
+    pub fn from_str(s: &str, app: &Arc<AppState>) -> Result<Self,WDQSErr> {
         Ok(QueryPart::Element(Element::from_str(&app.replace_prefix(s)).ok_or_else(||format!("QueryPart::from_str: Can not parse '{s}'"))?))
     }
 }

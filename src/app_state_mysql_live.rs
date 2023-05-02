@@ -34,7 +34,7 @@ impl AppStateLiveMySQL {
 
 #[async_trait]
 impl AppDB for AppStateLiveMySQL {
-    async fn init_from_db(&self, app: &AppState) -> Result<(),WDSQErr> {
+    async fn init_from_db(&self, app: &AppState) -> Result<(),WDQSErr> {
         let mut conn = self.db_conn().await?;
         conn.exec_drop(MYSQL_CREATE_TEXTS_TABLE, ()).await?;
         conn.exec_drop(MYSQL_CREATE_TABLE_LIST_TABLE, ()).await?;
@@ -54,7 +54,7 @@ impl AppDB for AppStateLiveMySQL {
         self.db_pool.get_conn().await
     }
 
-    async fn add_to_table_list(&self, table: &DatabaseTable) -> Result<(),WDSQErr> {
+    async fn add_to_table_list(&self, table: &DatabaseTable) -> Result<(),WDQSErr> {
         let name = table.name.to_owned();
         let json = json!(table).to_string();
         let sql = table.create_statement();
@@ -65,14 +65,14 @@ impl AppDB for AppStateLiveMySQL {
         Ok(())
     }
 
-    async fn prepare_text(&self, text_chunk: &[String]) -> Result<(),WDSQErr> {
+    async fn prepare_text(&self, text_chunk: &[String]) -> Result<(),WDQSErr> {
         let question_marks = vec!["(?)"; text_chunk.len()].join(",");
         let sql = format!("INSERT IGNORE INTO `texts` (`value`) VALUES {question_marks}");
         self.db_conn().await?.exec_drop(sql, &text_chunk.to_owned()).await?;
         Ok(())
     }
 
-    async fn force_flush(&self, command: &str, value_chunk: &[Vec<DbOperationCacheValue>]) -> Result<Vec<(String, Vec<String>)>,WDSQErr> {
+    async fn force_flush(&self, command: &str, value_chunk: &[Vec<DbOperationCacheValue>]) -> Result<Vec<(String, Vec<String>)>,WDQSErr> {
         let mut ret = vec![];
         let question_marks: Vec<_> = value_chunk
             .iter()
@@ -95,7 +95,7 @@ impl AppDB for AppStateLiveMySQL {
         Ok(ret)
     }
 
-    async fn run_query(&self, _app: &AppState, query: &QueryTriples) -> Result<HashMap<String,DatabaseQueryResult>,WDSQErr> {
+    async fn run_query(&self, _app: &AppState, query: &QueryTriples) -> Result<HashMap<String,DatabaseQueryResult>,WDQSErr> {
         let mut conn = self.db_conn().await?;
         let mut ret = HashMap::new();
         for (group_key,part) in &query.result {

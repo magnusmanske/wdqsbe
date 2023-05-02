@@ -1,6 +1,6 @@
 use std::{sync::Arc, collections::HashMap, fmt::{Display, self}};
 
-use crate::{query_part::QueryPart, app_state::AppState, database_table::DatabaseTable, error::WDSQErr, type_part::TypePart, element::Element};
+use crate::{query_part::QueryPart, app_state::AppState, database_table::DatabaseTable, error::WDQSErr, type_part::TypePart, element::Element};
 
 #[derive(Debug, Clone, Default)]
 pub struct DatabaseQueryResult {
@@ -95,7 +95,7 @@ impl QueryTriples {
         }
     }
 
-    pub async fn from_str(app: &Arc<AppState>, s: &str, p: &str, o: &str ) -> Result<Self,WDSQErr> {
+    pub async fn from_str(app: &Arc<AppState>, s: &str, p: &str, o: &str ) -> Result<Self,WDQSErr> {
         let (s,s_meta) = Self::meta_part_from_string(s, &app)?;
         let (p,p_meta) = Self::meta_part_from_string(p, &app)?;
         let (o,o_meta) = Self::meta_part_from_string(o, &app)?;
@@ -112,7 +112,7 @@ impl QueryTriples {
         Ok(ret)
     }
 
-    fn meta_part_from_string(s: &str, app: &Arc<AppState>) -> Result<(QueryPart,QueryPartMeta),WDSQErr> {
+    fn meta_part_from_string(s: &str, app: &Arc<AppState>) -> Result<(QueryPart,QueryPartMeta),WDQSErr> {
         if let Some((should_be_blank,var_name)) = s.split_once("?") {
             if should_be_blank.is_empty() {
                 let part = QueryPart::Unknown;
@@ -187,7 +187,7 @@ impl QueryTriples {
         }
     }
 
-    async fn sql_for_table(&self, table_name: &str) -> Result<Option<SqlPart>,WDSQErr> {
+    async fn sql_for_table(&self, table_name: &str) -> Result<Option<SqlPart>,WDQSErr> {
         let mut conditions = self.get_sql_conditions(&self.s,"k");
         conditions.append(&mut self.get_sql_conditions(&self.o,"v"));
         while conditions.len()>1 {
@@ -203,7 +203,7 @@ impl QueryTriples {
     }
 
     // These tables must have the same columns, and the columns must have the the same meaning.
-    async fn process_similar_tables(&self, table_names: &Vec<String>, app: &AppState) -> Result<Option<SqlPart>,WDSQErr> {
+    async fn process_similar_tables(&self, table_names: &Vec<String>, app: &AppState) -> Result<Option<SqlPart>,WDQSErr> {
         let mut ret = vec![] ;
         for table_name in table_names {
             match self.sql_for_table(table_name).await? {
@@ -234,10 +234,10 @@ impl QueryTriples {
         Ok(ret.pop())
     }
 
-    async fn get_sql_return_params(&self, table_name: &str, app: &AppState) -> Result<(Vec<String>,Vec<SqlVariable>),WDSQErr> {
+    async fn get_sql_return_params(&self, table_name: &str, app: &AppState) -> Result<(Vec<String>,Vec<SqlVariable>),WDQSErr> {
         let mut params = vec![];
         let mut ret_variables = vec![];
-        let table = app.tables.get(table_name).ok_or_else(|| WDSQErr::String(format!("get_sql_return_params: Missing table '{table_name}'")))?;
+        let table = app.tables.get(table_name).ok_or_else(|| WDQSErr::String(format!("get_sql_return_params: Missing table '{table_name}'")))?;
         let names = table.names().to_owned();
 
         if let Some(variable) = &self.s_meta.variable {
@@ -286,7 +286,7 @@ impl QueryTriples {
         Ok((params,ret_variables))
     }
 
-    async fn process_grouped_tables(&self, grouped_tables: HashMap<String,Vec<String>>, app: &AppState) -> Result<HashMap<String,SqlPart>,WDSQErr> {
+    async fn process_grouped_tables(&self, grouped_tables: HashMap<String,Vec<String>>, app: &AppState) -> Result<HashMap<String,SqlPart>,WDQSErr> {
         let mut ret = HashMap::new();
         for (group_key,table_names) in grouped_tables {
             match self.process_similar_tables(&table_names, app).await? {
@@ -299,7 +299,7 @@ impl QueryTriples {
         Ok(ret) // TODO FIXME
     }
 
-    pub async fn process(&mut self, app: &AppState) -> Result<(),WDSQErr> {
+    pub async fn process(&mut self, app: &AppState) -> Result<(),WDQSErr> {
         let result = self.filter_tables(app).await;
         let result = self.group_tables(result, app).await;
         let result = self.process_grouped_tables(result, app).await?;
@@ -307,11 +307,11 @@ impl QueryTriples {
         Ok(())
     }
 
-    pub fn and(&mut self, other: &Self) -> Result<(),WDSQErr> {
+    pub fn and(&mut self, other: &Self) -> Result<(),WDQSErr> {
         self.join("INNER JOIN", other)
     }
     
-    fn join(&mut self, join: &str, other: &Self) -> Result<(),WDSQErr> {
+    fn join(&mut self, join: &str, other: &Self) -> Result<(),WDQSErr> {
         let mut result = HashMap::new();
         for (group_key,part) in &self.result {
             if let Some(other_part) = other.result.get(group_key) {
@@ -335,7 +335,7 @@ impl QueryTriples {
         Ok(())
     }
 
-    pub async fn run(&self, app: &AppState) -> Result<HashMap<String,DatabaseQueryResult>,WDSQErr> {
+    pub async fn run(&self, app: &AppState) -> Result<HashMap<String,DatabaseQueryResult>,WDQSErr> {
         app.run_query(&self).await
     }
 }
