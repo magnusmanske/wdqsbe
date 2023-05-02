@@ -9,8 +9,9 @@ pub enum DbOperationCacheValue {
     Usize(usize), // A number
     I16(i16), // signed 16-bit integer
     U16(u16), // unsigned 16-bit integer
-    I32(i32), // signed 16-bit integer
-    U32(u32), // unsigned 16-bit integer
+    I32(i32), // signed 32-bit integer
+    U32(u32), // unsigned 32-bit integer
+    I64(i64), // signed 64-bit integer
     U8(u8), // unsigned 8-bit integer
 }
 
@@ -25,6 +26,7 @@ impl DbOperationCacheValue {
             DbOperationCacheValue::U16(u) => format!("{u}"),
             DbOperationCacheValue::I32(u) => format!("{u}"),
             DbOperationCacheValue::U32(u) => format!("{u}"),
+            DbOperationCacheValue::I64(u) => format!("{u}"),
             DbOperationCacheValue::U8(u) => format!("{u}"),
         }
     }
@@ -47,6 +49,7 @@ impl DbOperationCacheValue {
             DbOperationCacheValue::U16(_) => None,
             DbOperationCacheValue::I32(_) => None,
             DbOperationCacheValue::U32(_) => None,
+            DbOperationCacheValue::I64(_) => None,
             DbOperationCacheValue::U8(_) => None,
         }
     }
@@ -81,6 +84,7 @@ impl ToString for DbOperationCacheValue {
             Self::U16(u) => format!("{u}"),
             Self::I32(u) => format!("{u}"),
             Self::U32(u) => format!("{u}"),
+            Self::I64(u) => format!("{u}"),
             Self::U8(u) => format!("{u}"),
         }
     }

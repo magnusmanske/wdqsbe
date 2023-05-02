@@ -1,5 +1,5 @@
 use std::{io::{self, BufRead, Lines}, fs::File, sync::Arc};
-use nom::{IResult, bytes::complete::{tag, take_until, take_until1}, branch::alt, character::complete::space1};
+use nom::{IResult, bytes::complete::{tag, take_until, take_until1}, branch::alt, character::complete::space1, error::{VerboseError, VerboseErrorKind}};
 use crate::{element::Element, app_state::AppState, error::WDSQErr, database_wrapper::DatabaseWrapper, lat_lon::LatLon, element_type::ElementType, date_time::DateTime};
 use bzip2::read::MultiBzDecoder;
 use flate2::read::GzDecoder;
@@ -13,7 +13,9 @@ impl Parser {
     }
 
     fn parse_line(line: &str) -> Result<(Element,Element,Element),WDSQErr> {
-        fn element_url(input: &str) -> IResult<&str, Element> {
+        type Res<T, U> = IResult<T, U, VerboseError<T>>;
+        
+        fn element_url(input: &str) -> Res<&str, Element> {
             let (input, _) = tag("<")(input)?;
             let (input, s) = take_until1(">")(input)?;
             let (input, _) = tag(">")(input)?;
@@ -21,14 +23,14 @@ impl Parser {
             Ok((input, element))
         }
 
-        fn element_underscore(input: &str) -> IResult<&str, Element> {
+        fn element_underscore(input: &str) -> Res<&str, Element> {
             let (input, _) = tag("_")(input)?;
             let (input, s) = take_until(" ")(input)?;
             let element = Element::Text(s.into());
             Ok((input, element))
         }
 
-        fn string_type(input: &str) -> IResult<&str, &str> {
+        fn string_type(input: &str) -> Res<&str, &str> {
             let (input, _) = tag("^^")(input)?;
             let (input, _) = tag("<")(input)?;
             let (input, s) = take_until1(">")(input)?;
@@ -36,7 +38,7 @@ impl Parser {
             Ok((input, s))
         }
 
-        fn string_language(input: &str) -> IResult<&str, &str> {
+        fn string_language(input: &str) -> Res<&str, &str> {
             let (input, _) = tag("@")(input)?;
             let (input, s) = take_until1(" ")(input)?;
             Ok((input, s))
@@ -49,14 +51,11 @@ impl Parser {
                 "http://www.w3.org/2001/XMLSchema#decimal" => return Some(Element::Float(s.parse::<f64>().ok()?)),
                 "http://www.w3.org/2001/XMLSchema#double" => return Some(Element::Float(s.parse::<f64>().ok()?)), // For now, same as decimal
                 "http://www.w3.org/2001/XMLSchema#integer" => return Some(Element::Int(s.parse::<i64>().ok()?)),
-                other => {
-                    eprintln!("element_from_type: Unknown type '{other}' for '{s}'");
-                    return Some(Element::Url(s.into()));
-                }
+                _ => None,
             }
         }
 
-        fn element_string(input: &str) -> IResult<&str, Element> {
+        fn element_string(input: &str) -> Res<&str, Element> {
             let (input, _) = tag("\"")(input)?;
             let (input, s) = take_until("\"")(input)?;
             let (input, _) = tag("\"")(input)?;
@@ -65,7 +64,7 @@ impl Parser {
                     Some(element) => element,
                     None => {
                         eprintln!("element_string: type parsing has failed: '{input}' / '{type_s}'");
-                        Element::Text(s.into())
+                        return Err(nom::Err::Error(VerboseError { errors: vec![(input, VerboseErrorKind::Context("element_string: type parsing has failed"))] }));
                     }
                 };
                 return Ok((input, element));
@@ -77,21 +76,39 @@ impl Parser {
             Ok((input, Element::Text(s.into())))
         }
 
-        fn element(input: &str) -> IResult<&str, Element> {
+        fn element(input: &str) -> Res<&str, Element> {
             alt((element_url,element_underscore,element_string))(input)
         }
 
-        let input: &str = &line;
-        let (input,part1) = element(input)?;
-        let (input,_) = space1(input)?;
-        let (input,part2) = element(input)?;
-        let (input,_) = space1(input)?;
-        let (_,part3) = element(input)?;
-
-        if let Element::Url(url) = &part2 {
-            eprintln!("parse_line: Property is URL, but should not be: {url:?}");
+        fn parse_line_sub(input: &str) -> Res<&str, (Element,Element,Element)> {
+            let (input,part1) = element(input)?;
+            let (input,_) = space1(input)?;
+            let (input,part2) = element(input)?;
+            let (input,_) = space1(input)?;
+            let (_,part3) = element(input)?;
+            Ok((input,(part1,part2,part3)))
         }
-        Ok((part1,part2,part3))
+
+        fn parse_line(line: &str) -> Result<(Element,Element,Element),WDSQErr> {
+            let (part1,part2,part3) = match parse_line_sub(line) {
+                Ok((_,part123)) => part123,
+                Err(e) => return Err(WDSQErr::String(e.to_string())),
+            };
+            if let Element::Url(url) = &part2 {
+                return Err(WDSQErr::String(format!("parse_line: Property is URL, but should not be: {url:?}")));
+                // eprintln!("parse_line: Property is URL, but should not be: {url:?}, line:\n{line}\n");
+            }
+            Ok((part1,part2,part3))    
+        }
+
+        match parse_line(line) {
+            Ok(ret) => Ok(ret),
+            Err(e) => {
+                println!("Parsing error");
+                Err(e)
+            },
+        }
+
     }
 
     async fn read_lines<T: BufRead>(&self, lines_iter: &mut Lines<T>, app: &Arc<AppState>) -> Result<(),WDSQErr> {
@@ -101,7 +118,7 @@ impl Parser {
                 let _ = match Self::parse_line(&line) {
                     Ok((part1,part2,part3)) => wrapper.add(part1,&part2,part3).await,
                     Err(e) => {
-                        eprintln!("PARSER ERROR:\n{line}\n{e}");
+                        eprintln!("PARSER ERROR:{e} line:\n{line}\n");
                         Ok(())
                     }
                 };

@@ -6,9 +6,11 @@ lazy_static! {
     static ref RE_DATE_TIME: Regex = Regex::new(r#"^([+-]?\d+)-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z$"#).expect("RE_DATE_TIME does not parse");
 }
 
+pub type YearType = i64;
+
 #[derive(Clone, Debug)]
 pub struct DateTime {
-    year: i32,
+    year: YearType,
     month: u8,
     day: u8,
     hour: u8,
@@ -20,7 +22,7 @@ impl ElementType for DateTime {
     fn from_str(s: &str) -> Option<Box<Self>> {
         if let Some(caps) = RE_DATE_TIME.captures(&s) {
             return Some(Box::new(Self {
-                year: caps.get(1)?.as_str().parse::<i32>().ok()?,
+                year: caps.get(1)?.as_str().parse::<YearType>().ok()?,
                 month: caps.get(2)?.as_str().parse::<u8>().ok()?,
                 day: caps.get(3)?.as_str().parse::<u8>().ok()?,
                 hour: caps.get(4)?.as_str().parse::<u8>().ok()?,
@@ -46,7 +48,7 @@ impl ElementType for DateTime {
         //let safe_s = self.s.replace('"',""); // TODO FIXME
         //format!("(SELECT `id` FROM `texts` WHERE `value`=\"{safe_s}\")")
         vec![
-            DbOperationCacheValue::I32(self.year),
+            DbOperationCacheValue::I64(self.year),
             DbOperationCacheValue::U8(self.month),
             DbOperationCacheValue::U8(self.day),
             DbOperationCacheValue::U8(self.hour),
