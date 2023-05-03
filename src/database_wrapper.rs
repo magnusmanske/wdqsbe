@@ -40,7 +40,7 @@ impl DatabaseWrapper {
 
     pub async fn flush_insert_caches(&mut self) -> Result<(),WDQSErr> {
         let mut tasks = vec![];
-        for (_,cache) in self.insert_cache.drain() {
+        for (_,mut cache) in self.insert_cache.drain() {
             let app = self.app.clone();
             tasks.push(tokio::spawn(async move { cache.force_flush(&app).await }));
         }

@@ -105,25 +105,24 @@ impl DbOperationCache {
     }
 
     pub async fn clear(&mut self) {
-        self.values.clear();
+        self.values = vec![];
     }
 
     pub async fn add(&mut self, k: &Element, v: &Element, table: &DatabaseTable, values: Vec<DbOperationCacheValue>, app: &AppState) -> Result<(),WDQSErr> {
         if values.is_empty() {
             return Err(format!("DbOperationCache::add: Nothing to do for {k:?} / {v:?}").into());
         }
-        self.values.push(values.to_owned());
 
-        // Create command if necessary
-        if !self.command.is_empty() {
-            return Ok(());
+        if self.command.is_empty() {
+            let mut fields: Vec<String> = k.fields("k");
+            fields.append(&mut v.fields("v"));
+            if fields.len()!=values.len() {
+                return Err(format!("DbOperationCache::add: [2] Expected {} fields, got {}",values.len(),fields.len()).into());
+            }
+            self.command = format!("INSERT IGNORE INTO `{}` (`{}`) VALUES ",&table.name,fields.join("`,`"));
         }
-        let mut fields: Vec<String> = k.fields("k");
-        fields.append(&mut v.fields("v"));
-        if fields.len()!=values.len() {
-            return Err(format!("DbOperationCache::add: [2] Expected {} fields, got {}",values.len(),fields.len()).into());
-        }
-        self.command = format!("INSERT IGNORE INTO `{}` (`{}`) VALUES ",&table.name,fields.join("`,`"));
+
+        self.values.push(values);
         if self.values.len()>=app.insert_batch_size {
             self.force_flush(app).await?;
         }
@@ -152,13 +151,14 @@ impl DbOperationCache {
         Ok(())
     }
 
-    pub async fn force_flush(&self, app: &AppState) -> Result<(),WDQSErr> {
+    pub async fn force_flush(&mut self, app: &AppState) -> Result<(),WDQSErr> {
         if self.values.is_empty() {
             return Ok(());
         }
 
         self.prepare_text(app).await?;
         app.force_flush_all(&self).await?;
+        self.values = vec![];
 
         Ok(())
     }

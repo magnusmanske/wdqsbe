@@ -89,7 +89,7 @@ impl Parser {
             Ok((input,(part1,part2,part3)))
         }
 
-        fn parse_line(line: &str) -> Result<(Element,Element,Element),WDQSErr> {
+        fn parse_line_internal(line: &str) -> Result<(Element,Element,Element),WDQSErr> {
             let (part1,part2,part3) = match parse_line_sub(line) {
                 Ok((_,part123)) => part123,
                 Err(e) => return Err(WDQSErr::String(e.to_string())),
@@ -101,7 +101,7 @@ impl Parser {
             }
         }
 
-        match parse_line(line) {
+        match parse_line_internal(line) {
             Ok(ret) => Ok(ret),
             Err(e) => {
                 println!("Parsing error");
