@@ -104,7 +104,7 @@ impl Parser {
         match parse_line_internal(line) {
             Ok(ret) => Ok(ret),
             Err(e) => {
-                println!("Parsing error");
+                eprintln!("Parsing error");
                 Err(e)
             },
         }

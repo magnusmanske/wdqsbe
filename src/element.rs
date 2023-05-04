@@ -244,7 +244,7 @@ impl Element {
             "Value" => vec![format!("{prefix}0")],
             "Url" => vec![format!("{prefix}0")],
             other => {
-                println!("Element::sql_var_from_name: for '{other}'");
+                eprintln!("Element::sql_var_from_name: for '{other}'");
                 vec![]
             }
         }
