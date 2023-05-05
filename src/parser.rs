@@ -1,5 +1,6 @@
 use std::{io::{self, BufRead, Lines}, fs::File, sync::Arc};
 use nom::{IResult, bytes::complete::{tag, take_until, take_until1}, branch::alt, character::complete::space1, error::{VerboseError, VerboseErrorKind}};
+use tokio::sync::Mutex;
 use crate::{element::Element, app_state::AppState, error::WDQSErr, database_wrapper::DatabaseWrapper, lat_lon::LatLon, element_type::ElementType, date_time::DateTime};
 use bzip2::read::MultiBzDecoder;
 use flate2::read::GzDecoder;
@@ -120,7 +121,7 @@ impl Parser {
     }
 
     async fn read_lines_serial<T: BufRead>(&self, lines_iter: &mut Lines<T>, app: &Arc<AppState>) -> Result<(),WDQSErr> {
-        let mut wrapper = DatabaseWrapper::new(app.clone());
+        let wrapper = DatabaseWrapper::new(app.clone());
         while let Some(line) = lines_iter.next() {
             if let Ok(line) = line {
                 let _ = match Self::parse_line(&line) {
@@ -136,22 +137,32 @@ impl Parser {
     }
 
     async fn read_lines_multithread<T: BufRead>(&self, lines_iter: &mut Lines<T>, app: &Arc<AppState>) -> Result<(),WDQSErr> {
-        let mut wrapper = DatabaseWrapper::new(app.clone()); // THIS DOES NOT WORk YET
+        let wrapper = Arc::new(DatabaseWrapper::new(app.clone()));
+        let counter = Arc::new(Mutex::new(0 as usize));
         while let Some(line) = lines_iter.next() {
             if let Ok(line) = line {
-                let mut wrapper = wrapper.clone();
+                let wrapper = wrapper.clone();
+                let counter = counter.clone();
+                *counter.lock().await += 1;
                 tokio::task::spawn(async move {
                     let _ = match Self::parse_line(&line) {
-                        Ok((part1,part2,part3)) => wrapper.add(part1,&part2,part3).await,
+                        Ok((part1,part2,part3)) => {
+                            if let Err(e) = wrapper.add(part1,&part2,part3).await {
+                                eprintln!("WARPPER.ADD ERROR:{e} line:\n{line}\n")
+                            }
+                        }
                         Err(e) => {
                             eprintln!("PARSER ERROR:{e} line:\n{line}\n");
-                            Ok(())
                         }
                     };
+                    *counter.lock().await -= 1;
                 });
             }
         }
-        wrapper.flush_insert_caches().await // TODO make sure all threads have completed before this line
+        while *counter.lock().await>0 {
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+        wrapper.flush_insert_caches().await
     }
 
     pub async fn import_from_file(&self, filename: &str, app: &Arc<AppState>) -> Result<(),WDQSErr> {

@@ -18,7 +18,7 @@ impl DatabaseWrapper {
         }
     }
 
-    pub async fn add(&mut self, s: Element, p: &Element, o: Element) -> Result<(),WDQSErr> {
+    pub async fn add(&self, s: Element, p: &Element, o: Element) -> Result<(),WDQSErr> {
         let table = self.app.table(&s,p,&o).await?;
         let mut values = s.values();
         values.append(&mut o.values());
@@ -40,7 +40,7 @@ impl DatabaseWrapper {
         Ok(())
     }
 
-    pub async fn flush_insert_caches(&mut self) -> Result<(),WDQSErr> {
+    pub async fn flush_insert_caches(&self) -> Result<(),WDQSErr> {
         let mut tasks = vec![];
         for (_,mut cache) in self.insert_cache.lock().await.drain() {
             let app = self.app.clone();
