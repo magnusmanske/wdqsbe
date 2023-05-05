@@ -1,19 +1,20 @@
 use std::{sync::Arc, collections::HashMap};
 use futures::future::join_all;
+use tokio::sync::Mutex;
 use crate::{error::*, element::Element, db_operation_cache::DbOperationCache, app_state::AppState};
 
 
 #[derive(Debug, Clone)]
 pub struct DatabaseWrapper {
     app: Arc<AppState>,
-    insert_cache: HashMap<String,DbOperationCache>,
+    insert_cache: Arc<Mutex<HashMap<String,DbOperationCache>>>,
 }
 
 impl DatabaseWrapper {
     pub fn new(app: Arc<AppState>) -> Self {
         Self {
             app,
-            insert_cache: HashMap::new(),
+            insert_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -22,17 +23,18 @@ impl DatabaseWrapper {
         let mut values = s.values();
         values.append(&mut o.values());
 
-        if let Some(cache) = self.insert_cache.get_mut(&table.name) {
+        if let Some(cache) = self.insert_cache.lock().await.get_mut(&table.name) {
             cache.add(&s, &o, &table, values, &self.app).await?;
             return Ok(())
         }
 
         // Add new
         self.insert_cache
+            .lock().await
             .entry(table.name.to_owned())
             .or_insert(DbOperationCache::new());
 
-        self.insert_cache.get_mut(&table.name).unwrap()
+        self.insert_cache.lock().await.get_mut(&table.name).unwrap()
             .add(&s, &o, &table, values, &self.app)
             .await?;
         Ok(())
@@ -40,7 +42,7 @@ impl DatabaseWrapper {
 
     pub async fn flush_insert_caches(&mut self) -> Result<(),WDQSErr> {
         let mut tasks = vec![];
-        for (_,mut cache) in self.insert_cache.drain() {
+        for (_,mut cache) in self.insert_cache.lock().await.drain() {
             let app = self.app.clone();
             tasks.push(tokio::spawn(async move { cache.force_flush(&app).await }));
         }
