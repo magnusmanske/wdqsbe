@@ -158,7 +158,7 @@ impl DbOperationCache {
 
         self.prepare_text(app).await?;
         app.force_flush_all(&self).await?;
-        self.values = vec![];
+        self.values.clear();
 
         Ok(())
     }
