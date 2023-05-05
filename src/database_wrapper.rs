@@ -23,21 +23,16 @@ impl DatabaseWrapper {
         let mut values = s.values();
         values.append(&mut o.values());
 
-        if let Some(cache) = self.insert_cache.lock().await.get_mut(&table.name) {
-            cache.add(&s, &o, &table, values, &self.app).await?;
-            return Ok(())
+        let mut ic = self.insert_cache.lock().await;
+        match ic.get_mut(&table.name) {
+            Some(cache) => cache.add(&s, &o, &table, values, &self.app).await,
+            None => {
+                ic.entry(table.name.to_owned())
+                    .or_insert(DbOperationCache::new())
+                    .add(&s, &o, &table, values, &self.app)
+                    .await
+            }
         }
-
-        // Add new
-        self.insert_cache
-            .lock().await
-            .entry(table.name.to_owned())
-            .or_insert(DbOperationCache::new());
-
-        self.insert_cache.lock().await.get_mut(&table.name).unwrap()
-            .add(&s, &o, &table, values, &self.app)
-            .await?;
-        Ok(())
     }
 
     pub async fn flush_insert_caches(&self) -> Result<(),WDQSErr> {
