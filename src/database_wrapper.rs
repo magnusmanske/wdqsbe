@@ -25,11 +25,11 @@ impl DatabaseWrapper {
 
         let mut ic = self.insert_cache.lock().await;
         match ic.get_mut(&table.name) {
-            Some(cache) => cache.add(&s, &o, &table, values, &self.app).await,
+            Some(cache) => cache.add(values, &self.app).await,
             None => {
                 ic.entry(table.name.to_owned())
-                    .or_insert(DbOperationCache::new())
-                    .add(&s, &o, &table, values, &self.app)
+                    .or_insert(DbOperationCache::new(&s,&o,&table))
+                    .add(values, &self.app)
                     .await
             }
         }

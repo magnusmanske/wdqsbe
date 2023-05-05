@@ -97,29 +97,16 @@ pub struct DbOperationCache {
 }
 
 impl DbOperationCache {
-    pub fn new() -> Self {
+    pub fn new(k: &Element, v: &Element, table: &DatabaseTable) -> Self {
         Self {
-            command: String::new(),
+            command: Self::create_command(k,v,table),
             values: vec![],
         }
     }
 
-    pub async fn clear(&mut self) {
-        self.values = vec![];
-    }
-
-    pub async fn add(&mut self, k: &Element, v: &Element, table: &DatabaseTable, values: Vec<DbOperationCacheValue>, app: &AppState) -> Result<(),WDQSErr> {
+    pub async fn add(&mut self, values: Vec<DbOperationCacheValue>, app: &AppState) -> Result<(),WDQSErr> {
         if values.is_empty() {
-            return Err(format!("DbOperationCache::add: Nothing to do for {k:?} / {v:?}").into());
-        }
-
-        if self.command.is_empty() {
-            let mut fields: Vec<String> = k.fields("k");
-            fields.append(&mut v.fields("v"));
-            if fields.len()!=values.len() {
-                return Err(format!("DbOperationCache::add: [2] Expected {} fields, got {}",values.len(),fields.len()).into());
-            }
-            self.command = format!("INSERT IGNORE INTO `{}` (`{}`) VALUES ",&table.name,fields.join("`,`"));
+            return Err(format!("DbOperationCache::add: Nothing to do for {}",self.command).into());
         }
 
         self.values.push(values);
@@ -127,6 +114,15 @@ impl DbOperationCache {
             self.force_flush(app).await?;
         }
         Ok(())
+    }
+
+    fn create_command(k: &Element, v: &Element, table: &DatabaseTable) -> String {
+        let mut fields: Vec<String> = k.fields("k");
+        fields.append(&mut v.fields("v"));
+        // if fields.len()!=values.len() {
+        //     return Err(format!("DbOperationCache::add: Expected {} fields, got {}",values.len(),fields.len()).into());
+        // }
+        format!("INSERT IGNORE INTO `{}` (`{}`) VALUES ",&table.name,fields.join("`,`"))
     }
 
     async fn prepare_text(&self, app: &AppState) -> Result<(),WDQSErr> {

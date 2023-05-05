@@ -113,30 +113,6 @@ impl Parser {
     }
 
     async fn read_lines<T: BufRead>(&self, lines_iter: &mut Lines<T>, app: &Arc<AppState>) -> Result<(),WDQSErr> {
-        if false {
-            self.read_lines_serial(lines_iter, app).await
-        } else {
-            self.read_lines_multithread(lines_iter, app).await
-        }
-    }
-
-    async fn read_lines_serial<T: BufRead>(&self, lines_iter: &mut Lines<T>, app: &Arc<AppState>) -> Result<(),WDQSErr> {
-        let wrapper = DatabaseWrapper::new(app.clone());
-        while let Some(line) = lines_iter.next() {
-            if let Ok(line) = line {
-                let _ = match Self::parse_line(&line) {
-                    Ok((part1,part2,part3)) => wrapper.add(part1,&part2,part3).await,
-                    Err(e) => {
-                        eprintln!("PARSER ERROR:{e} line:\n{line}\n");
-                        Ok(())
-                    }
-                };
-            }
-        }
-        wrapper.flush_insert_caches().await
-    }
-
-    async fn read_lines_multithread<T: BufRead>(&self, lines_iter: &mut Lines<T>, app: &Arc<AppState>) -> Result<(),WDQSErr> {
         let wrapper = Arc::new(DatabaseWrapper::new(app.clone()));
         let counter = Arc::new(Mutex::new(0 as usize));
         while let Some(line) = lines_iter.next() {
