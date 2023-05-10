@@ -87,7 +87,7 @@ impl ElementType for Entity {
     fn name(&self) -> &str {
         match self {
             Entity::Item(_) => "EntityItem",
-            Entity::Property(_) => "EntityProperty",
+            Entity::Property(_) => "EntityProp",
             Entity::Media(_) => "EntityMedia",
             Entity::Lexeme(_) => "EntityLexeme",
             Entity::LexemeForm(_) => "EntityLexemeF",
@@ -98,7 +98,7 @@ impl ElementType for Entity {
 
     fn table_name(&self) -> String {
         match self {
-            Entity::Property(p) => format!("P{}",p),
+            Entity::Property(p) => format!("P{p}"),
             _ => self.name().to_string(),
         }
     }
@@ -118,7 +118,7 @@ impl ElementType for Entity {
     fn sql_var_from_name(name: &str, prefix: &str) -> Option<Vec<String>> {
         Some(match name {
             "EntityItem" => vec![format!("{prefix}0")],
-            "EntityProperty" => vec![format!("{prefix}0")],
+            "EntityProp" => vec![format!("{prefix}0")],
             "EntityMedia" => vec![format!("{prefix}0")],
             "EntityLexeme" => vec![format!("{prefix}0")],
             "EntityLexemeForm" => vec![format!("{prefix}0"),format!("{prefix}1")],
@@ -131,7 +131,7 @@ impl ElementType for Entity {
     fn from_sql_values(name:&str, value: &Vec<String>) -> Option<Box<Entity>> {
         Some(Box::new(match name {
             "EntityItem" => Entity::Item(value[0].parse::<u32>().unwrap()),
-            "EntityProperty" => Entity::Property(value[0].parse::<u16>().unwrap()),
+            "EntityProp" => Entity::Property(value[0].parse::<u16>().unwrap()),
             "EntityMedia" => Entity::Media(value[0].parse::<u32>().unwrap()),
             "EntityLexeme" => Entity::Lexeme(value[0].parse::<u32>().unwrap()),
             "EntityLexemeForm" => Entity::LexemeForm((

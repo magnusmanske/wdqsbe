@@ -59,8 +59,8 @@ async fn main() -> Result<(), WDQSErr> {
     let app = Arc::new(AppState::from_config(&config));
     app.init_from_db().await?;
     if let Some(filename) = matches.get_one::<String>("import") {
-        let parser = parser::Parser::new();
-        parser.import_from_file(filename, &app).await?;
+        let parser = parser::Parser::new(app.clone());
+        parser.import_from_file(filename).await?;
     } else { // query
         let mut qt1 = QueryTriples::from_str(&app,"?person","wdt:P31","wd:Q5").await?;
         let qt2 = QueryTriples::from_str(&app,"?person","wdt:P21","wd:Q6581072").await?;

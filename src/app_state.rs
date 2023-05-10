@@ -37,7 +37,6 @@ impl std::fmt::Debug for dyn AppDB {
     }
 }
 
-#[derive(Clone)]
 pub struct AppState {
     pub db_interface: Arc<Box<dyn AppDB + Sync + Send>>,
     pub tables: Arc<DashMap<String,DatabaseTable>>,
@@ -46,9 +45,6 @@ pub struct AppState {
     pub insert_chunk_size: usize,
     prefixes: HashMap<String,String>,
 }
-
-unsafe impl Send for AppState {}
-unsafe impl Sync for AppState {}
 
 impl fmt::Debug for AppState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

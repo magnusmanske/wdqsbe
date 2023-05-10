@@ -255,7 +255,7 @@ impl Element {
             Element::Entity(e) => e.table_name(),
             Element::Property(p) => p.table_name(),//format!("Property_{s}"),
             Element::PropertyDirect(s) => format!("PropertyDirect_{s}"),
-            Element::PropertyDirectNormalized(s) => format!("PropertyDirectNorm_{s}"),
+            Element::PropertyDirectNormalized(s) => format!("ProDirectNorm_{s}"),
             Element::PropertyStatement(s) => format!("PropertyStatement_{s}"),
             Element::PropertyStatementValue(s) => format!("PropStatementValue{s}"),
             Element::PropertyStatementValueNormalized(s) => format!("PSVN_{s}"), // Otherwise the table name can get too long

@@ -5,12 +5,18 @@ use crate::{element::Element, app_state::AppState, error::WDQSErr, database_wrap
 use bzip2::read::MultiBzDecoder;
 use flate2::read::GzDecoder;
 
+const MAX_CONCURRENT_THREADS: usize = 50000;
+
 #[derive(Clone, Debug)]
-pub struct Parser {}
+pub struct Parser {
+    wrapper: Arc<DatabaseWrapper>,
+}
 
 impl Parser {
-    pub fn new() -> Self {
-        Self {}
+    pub fn new(app: Arc<AppState>) -> Self {
+        Self {
+            wrapper: Arc::new(DatabaseWrapper::new(app)),
+        }
     }
 
     fn parse_line(line: &str) -> Result<(Element,Element,Element),WDQSErr> {
@@ -112,16 +118,20 @@ impl Parser {
 
     }
 
-    async fn read_lines<T: BufRead>(&self, lines_iter: &mut Lines<T>, app: &Arc<AppState>) -> Result<(),WDQSErr> {
-        let wrapper = Arc::new(DatabaseWrapper::new(app.clone()));
+    async fn read_lines<T: BufRead>(&self, lines_iter: &mut Lines<T>) -> Result<(),WDQSErr> {
         let counter = Arc::new(Mutex::new(0 as usize));
         while let Some(line) = lines_iter.next() {
             if let Ok(line) = line {
-                let wrapper = wrapper.clone();
+
+                while *counter.lock().await>MAX_CONCURRENT_THREADS {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+                }
+        
+                let wrapper = self.wrapper.clone();
                 let counter = counter.clone();
                 *counter.lock().await += 1;
                 tokio::task::spawn(async move {
-                    let _ = match Self::parse_line(&line) {
+                    match Self::parse_line(&line) {
                         Ok((part1,part2,part3)) => {
                             if let Err(e) = wrapper.add(part1,&part2,part3).await {
                                 eprintln!("WARPPER.ADD ERROR:{e} line:\n{line}\n")
@@ -138,16 +148,16 @@ impl Parser {
         while *counter.lock().await>0 {
             tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         }
-        wrapper.flush_insert_caches().await
+        self.wrapper.flush_insert_caches().await
     }
 
-    pub async fn import_from_file(&self, filename: &str, app: &Arc<AppState>) -> Result<(),WDQSErr> {
+    pub async fn import_from_file(&self, filename: &str) -> Result<(),WDQSErr> {
         let file = File::open(filename)?;
         let buffer_size = 1024*1024;
         match filename.split('.').last() {
-            Some("bz2") => self.read_lines(&mut io::BufReader::with_capacity(buffer_size, MultiBzDecoder::new(file)).lines(), app).await,
-            Some("gz") => self.read_lines(&mut io::BufReader::with_capacity(buffer_size, GzDecoder::new(file)).lines(), app).await,
-            _ => self.read_lines(&mut io::BufReader::with_capacity(buffer_size, file).lines(), app).await,
+            Some("bz2") => self.read_lines(&mut io::BufReader::with_capacity(buffer_size, MultiBzDecoder::new(file)).lines()).await,
+            Some("gz") => self.read_lines(&mut io::BufReader::with_capacity(buffer_size, GzDecoder::new(file)).lines()).await,
+            _ => self.read_lines(&mut io::BufReader::with_capacity(buffer_size, file).lines()).await,
         }
     }
 

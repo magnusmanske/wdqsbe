@@ -96,11 +96,11 @@ impl AppDB for AppStateLiveMySQL {
     }
 
     async fn run_query(&self, _app: &AppState, query: &QueryTriples) -> Result<HashMap<String,DatabaseQueryResult>,WDQSErr> {
-        let mut conn = self.db_conn().await?;
         let mut ret = HashMap::new();
         for (group_key,part) in &query.result {
             let mut dsr = DatabaseQueryResult::default();
             dsr.variables = part.variables.clone();
+            let mut conn = self.db_conn().await?;
             let iter = conn.exec_iter(part.sql.to_owned(),part.values.to_owned()).await?;
             let results = iter.map_and_drop(|row| row).await?;
             for row in &results {

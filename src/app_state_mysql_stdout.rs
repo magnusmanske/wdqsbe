@@ -37,7 +37,7 @@ impl AppDB for AppStateStdoutMySQL {
 
     async fn add_to_table_list(&self, table: &DatabaseTable) -> Result<(),WDQSErr> {
         let name = table.name.to_owned();
-        let json = json!(table).to_string();
+        let json = Self::sql_escape(&json!(table).to_string());
         let sql = table.create_statement();
         println!("{sql};");
         let sql = format!("INSERT IGNORE INTO `table_list` (`name`,`json`) VALUES(\"{name}\",\"{json}\")");
