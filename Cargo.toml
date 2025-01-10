@@ -21,6 +21,7 @@ percent-encoding = "*"
 async-trait = "*"
 rusqlite = { version = "0.28.0", features = ["bundled"] }
 dashmap = "*"
+tantivy = "*"
 
 [profile.release]
 #lto = "fat"
